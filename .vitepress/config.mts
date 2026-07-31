@@ -19,7 +19,7 @@ export default defineConfig({
   lang: 'zh-CN',
   title: '魔法纪录复兴计划',
   description:
-    '魔法纪录国服复刻计划 · 统一文档 —— 玩家指南、自建部署、协议契约、客户端与服务端技术架构、贡献者手册',
+    '魔法纪录复兴计划 · 统一文档 —— 玩家指南、自建部署、协议契约、客户端与服务端技术架构、贡献者手册',
 
   base: '/',
 
@@ -278,7 +278,7 @@ export default defineConfig({
     footer: {
       message:
         '文档正文以 CC BY-NC-SA 4.0 授权 · 代码部分以 GPLv3 开源 · 本项目仅作学习研究使用，与版权方无任何关联',
-      copyright: '© 魔法纪录国服复刻计划 (MagirecoCN-Revival-Project)',
+      copyright: '© 魔法纪录复兴计划 (MagirecoCN-Revival-Project)',
     },
   },
 })

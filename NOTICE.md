@@ -13,7 +13,7 @@
 
 `SPDX-License-Identifier: CC-BY-NC-SA-4.0`
 
-Copyright (c) MagirecoCN-Revival-Project and contributors
+Copyright (c) 魔法纪录复兴计划 (MagirecoCN-Revival-Project) contributors
 
 ### 关于 GitHub 显示「Other」
 
@@ -25,6 +25,18 @@ NonCommercial 变体**——因为带 NC 的许可不属于自由文化 / 开源
 文件多标准，GitHub 都无法把它识别成 CC-BY-NC-SA-4.0。
 
 需要机器可读的许可标识时，请用上面那一行 SPDX 标识符，而不是 GitHub 的显示结果。
+
+### 如何署名（转载 / 引用本站内容时）
+
+CC BY-NC-SA 的「BY」要求给出适当署名。建议直接用下面这段：
+
+```
+《魔法纪录复兴计划 · 文档》 by 魔法纪录复兴计划贡献者
+https://docs.magireco.top
+以 CC BY-NC-SA 4.0 授权
+```
+
+若你对内容做了修改，请一并说明改了什么，并以相同许可发布你的版本。
 
 ### 贡献
 
