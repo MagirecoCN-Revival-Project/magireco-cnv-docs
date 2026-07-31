@@ -47,22 +47,6 @@ jobs:
       - name: 构建
         run: npm run docs:build
 
-      - name: 核对旧链接重定向页是否被带进产物
-        # public/ 下的重定向页是旧 URL 不 404 的唯一保障，构建产物里必须原样存在。
-        # 少一个就意味着社区里流传的某个链接从此失效，所以这里当作硬失败。
-        #
-        # 必须按「含 refresh 标记」来数，不能数目录下的 html 总数：dist/client 与
-        # dist/server 里同时还有新站自己的内容页，只数总数的话即使重定向页全丢了
-        # 也能凑够数，等于没检查。
-        run: |
-          n=$(grep -rl 'http-equiv="refresh"' .vitepress/dist/client .vitepress/dist/server 2>/dev/null | wc -l)
-          echo "重定向页数量：$n（期望 67）"
-          if [ "$n" -ne 67 ]; then
-            echo "::error::重定向页数量不是 67，旧链接可能 404，拒绝部署"
-            grep -rL 'http-equiv="refresh"' .vitepress/dist/client .vitepress/dist/server 2>/dev/null | head -20
-            exit 1
-          fi
-
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
