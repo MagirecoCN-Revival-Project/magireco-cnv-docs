@@ -4,7 +4,7 @@
 
 本项目 **仅作学习研究使用，不用于任何商业用途**。
 
-- **本文档站的全部内容** 按照 **[CC BY-NC-SA 4.0](https://github.com/MagirecoCN-Revival-Project/magireco-cnv-docs/blob/main/LICENSE)** 授权——散文、表格、图示、代码示例一律如此，**没有例外条款**。原因见下节；
+- **本文档站的全部内容** 按照 **[CC BY-NC-SA 4.0](https://github.com/MagirecoCN-Revival-Project/magireco-cnv-docs/blob/main/LICENSE)** 授权——散文、表格、图示、代码示例一律如此，**没有例外条款**。原因见下节；许可原文见 [`LICENSE`](https://github.com/MagirecoCN-Revival-Project/magireco-cnv-docs/blob/main/LICENSE)，项目侧说明见 [`NOTICE.md`](https://github.com/MagirecoCN-Revival-Project/magireco-cnv-docs/blob/main/NOTICE.md)；
 - 本项目的 **代码部分**（客户端 `patch/`、`cnv-native/`、`tools/`，服务端 `cmd/`、`internal/` 等我方原创代码）在**代码仓库里**按照 **[GPLv3](https://github.com/MagirecoCN-Revival-Project/magireco-cnv-client/blob/main/LICENSE)** 协议开源；
 - **原版代码部分**（反编译得到的 smali、原版 assets、原版 `.so` 等）仅供参考，版权归属原版权方；
 - 本项目 **与魔法少女小圆、魔法纪录游戏的版权方和著作权方没有任何联系**。如有侵权，请联系我们删除。
