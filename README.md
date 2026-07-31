@@ -43,10 +43,8 @@ npm run docs:dev      # 本地预览
 npm run docs:build    # 构建验证（提交前必跑）
 ```
 
-::: 注意
-VitePress 配置里开了 `ignoreDeadLinks: true`，构建**不会**因断链失败。改动涉及大量
-链接时请自行核对，不要只看构建是否通过。
-:::
+> **注意**：VitePress 配置里开了 `ignoreDeadLinks: true`，构建**不会**因断链失败。
+> 改动涉及大量链接时请自行核对，不要只看构建是否通过。
 
 ## 与代码仓库的关系
 
@@ -67,7 +65,14 @@ VitePress 配置里开了 `ignoreDeadLinks: true`，构建**不会**因断链失
 - [`LICENSE`](./LICENSE) —— CC BY-NC-SA 4.0 **官方原文，一字未改**（法律效力以此为准）
 - [`NOTICE.md`](./NOTICE.md) —— 项目侧的说明：为什么选这个许可、两点事实陈述、第三方内容出处
 
-两个文件分开是为了让 `LICENSE` 保持纯净：GitHub 才能正确识别许可类型，也不会有
-「附加的中文段落算不算修改了许可条款」这种歧义。
+两个文件分开是为了让 `LICENSE` 保持纯净——不会有「附加的中文段落算不算修改了许可
+条款」这种歧义。
+
+> **GitHub 的仓库页会把许可显示成「Other」，这是正常的，不是配置错误。**
+> GitHub 用 `licensee` 匹配 [choosealicense.com 的清单](https://choosealicense.com/appendix/)，
+> 该清单只收录 CC0-1.0、CC-BY-4.0、CC-BY-SA-4.0 三个 CC 许可，**不含任何 NC 变体**
+> ——因为 NC 不属于自由文化许可。`LICENSE` 写得再标准也不会被识别。
+>
+> 机器可读的标识请以 `NOTICE.md` 里的 `SPDX-License-Identifier: CC-BY-NC-SA-4.0` 为准。
 
 面向读者的版本见文档站的 [版权与许可](./about/license.md)。

@@ -27,6 +27,11 @@ export default defineConfig({
   cleanUrls: true,
   ignoreDeadLinks: true,
 
+  // 仓库元文件不是文档页：不排除的话它们会被建成 /README、/NOTICE 两个页面，
+  // 出现在站内搜索里，且内容（构建命令、许可声明）对读者是噪音。
+  // 它们的读者在 GitHub 上，不在文档站上。
+  srcExclude: ['README.md', 'NOTICE.md'],
+
   head: [
     ['link', { rel: 'icon', href: '/logo.png' }],
     ['meta', { name: 'theme-color', content: '#D63384' }],

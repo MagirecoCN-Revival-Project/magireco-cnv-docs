@@ -3,8 +3,8 @@
 > 本文件是**说明**，不是许可条款。具有法律效力的是 [`LICENSE`](./LICENSE)
 > 中的 CC BY-NC-SA 4.0 原文，本文件不修改、不限制、不扩展其中任何一条。
 >
-> 之所以分成两个文件：`LICENSE` 保持官方原文一字不动，GitHub 才能正确识别许可类型，
-> 也不会有「附加的中文段落算不算修改了许可条款」这种歧义。
+> 之所以分成两个文件：`LICENSE` 保持官方原文一字不动，不会有「附加的中文段落算不算
+> 修改了许可条款」这种歧义。
 
 ## 本仓库的许可
 
@@ -14,6 +14,19 @@
 `SPDX-License-Identifier: CC-BY-NC-SA-4.0`
 
 Copyright (c) MagirecoCN-Revival-Project and contributors
+
+### 关于 GitHub 显示「Other」
+
+GitHub 仓库页把本仓库的许可显示为 **Other**，这是**正常现象，不是配置错误**。
+
+GitHub 用 `licensee` 比对 [choosealicense.com 的许可清单](https://choosealicense.com/appendix/)，
+而该清单只收录 **CC0-1.0、CC-BY-4.0、CC-BY-SA-4.0** 三个 CC 许可，**不包含任何
+NonCommercial 变体**——因为带 NC 的许可不属于自由文化 / 开源许可。因此无论 `LICENSE`
+文件多标准，GitHub 都无法把它识别成 CC-BY-NC-SA-4.0。
+
+需要机器可读的许可标识时，请用上面那一行 SPDX 标识符，而不是 GitHub 的显示结果。
+
+### 贡献
 
 向本仓库贡献文档，即表示你同意你的贡献以 CC BY-NC-SA 4.0 授权。
 
