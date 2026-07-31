@@ -148,11 +148,81 @@ tools/verify-compile.sh    # 成功退出 0
 另外 `android.jar` 必须走 `-cp` 而**不能**走 `-bootclasspath`：放进 bootclasspath 后 JDK 找不到 `java.lang.invoke.LambdaMetafactory`，所有用了 lambda 的类（如 `SaveOverlayService`）都会报 `Unable to find method metafactory`——那是本地环境搭错，不是代码的错。CI 用的也是 `-cp`。
 :::
 
+## 归档元游戏前端 archive_magica_web.py
+
+元游戏（主页、扭蛋、编队、商店……）是跑在 WebView 里的 Web 应用，入口是
+**游戏 API 宿主**上的 `/magica/index.html`。该路径硬编码在 `libmadomagi_native.so` 里，
+可直接验证：
+
+```bash
+strings -n 6 lib/arm64-v8a/libmadomagi_native.so | grep -E 'magica/index|magica/resource'
+# /magica/index.html
+# /magica/index.html#/TopPage
+# /magica/index.html#/PurchaseTop
+# /magica/resource
+# /magica/resource/download/asset
+```
+
+::: danger 这套前端不在任何离线包里，服务端一关就没了
+补丁分发的 `cn_base_*.zip` 只含 `image_native`，`cn_magica_resource.zip` 只含
+`image_web` 图片，`cn_js_update.zip` 只含 `js/libs/*.json` 数据表——**应用本身的
+HTML/JS 从来都是运行时从服务器拉的**，`WebViewInterceptor` 也只在
+`<filesDir>/magica/` 下存在该文件时才用本地版本。
+
+官方日服 `android.magi-reco.com` 现在已经返回 **410 Gone**，这不是假设。
+这套前端是「元游戏跑进浏览器」那条路的全部基础，所以归档它有时间窗。
+:::
+
+```bash
+python3 tools/archive_magica_web.py --host <API 宿主> --out ./magica-archive
+```
+
+产物目录结构与 `<filesDir>/magica/` 一致，可直接推到设备上给 `WebViewInterceptor` 用，
+也可用静态服务器托管做离线研究。同时生成 `ARCHIVE_MANIFEST.json`（逐文件 sha256 + 失败清单）。
+
+::: warning `--host` 要给 API 宿主，不是资源宿主
+上游 `snaa` 发现端点（`POST /magica/api/snaa` + `{"version":128}`）返回的 `endpoint`
+是**资源**基址——域名本身就叫 `ttz`**`strg`**（totentanz storage）。拿它当 `--host`
+会全程 404，一个文件都抓不到（脚本会在这种情况下明确提示）。
+
+游戏 API 宿主的域名在 APK 里**静态不存在**，是运行时获取的；实践中从自建服务端的
+`services.game_server_host` 配置里取。详见[上游端点发现](/protocol/client-server#上游-totentanz-端点发现)。
+:::
+
+行为边界：只 GET 静态资产、**不带任何凭证**、**绝不触碰 `/magica/api/*`**（那是要鉴权
+的业务接口，响应含玩家数据）；同源限定 + 路径限定在 `/magica/`；默认串行限速；
+已存在的文件默认跳过因而可反复续跑。
+
+::: tip 两类相对引用的基址不同
+HTML 的 `src`/`href` 与 CSS 的 `url()` 相对于**文件自身**；JS 字符串字面量里的路径
+相对于**文档**基址（即 `/magica/`）——浏览器里 XHR/fetch 的相对 URL 按文档 URL 解析，
+不按脚本位置解析。混用会把 `js/main.js` 里的 `"js/libs/x.json"` 错拼成
+`/magica/js/js/libs/x.json`。
+:::
+
 ## 文档同步检查 doc-sync-check.yml
 
-强制约定「改客户端代码必须同 commit 更新文档」（见 `.claude/CLAUDE.md`）的**自动兜底**，两道：
+::: warning 判据已变更：文档不在客户端仓库了
+文档已迁至独立仓库 `magireco-cnv-docs`（就是你正在看的这个站）。跨仓库无法原子提交，
+所以「代码与文档同一 commit」这条铁律**在物理上不再可能满足**。判据改为
+**「提交信息里是否写明了对应的文档改动」**。
 
-- **事前拦截**（Claude Code 提交钩子）：`.claude/hooks/doc-sync-check.py` 注册为 `PreToolUse` 钩子，`git commit` 前检查暂存/将提交的改动——含 `patch/`·`cnv-native/`·`assets/cnv/`·`.github/workflows/` 却无 `website/`·`README`·`.claude/CLAUDE.md` 改动时**阻止提交**（`exit 2`）；确需跳过在提交信息加 `[skip-doc-check]`。钩子自身异常一律放行（fail-open）。
-- **事后提示**（CI）：`doc-sync-check.yml` 在每次 push 用 `github.event.commits` 载荷分析（无需 checkout），若代码改动无文档相随，在 Job Summary 红字提示并打 `::warning::`。**非阻断**（直推 main 无法事前 gate）。
+这确实更弱——只能核验声明，不能核验事实。但留一条恒假的规则会对每个提交误报，
+很快就没人看了，那比一条诚实的弱规则更糟。
+:::
 
-两者的代码/文档路径判定保持一致。
+约定（见 `.claude/CLAUDE.md`）的**自动兜底**，两道：
+
+- **事前拦截**（Claude Code 提交钩子）：`.claude/hooks/doc-sync-check.py` 注册为
+  `PreToolUse` 钩子，`git commit` 前检查将提交的改动——含 `patch/`·`cnv-native/`·
+  `assets/cnv/`·`.github/workflows/` 而命令文本里找不到 `文档:`/`Docs:` 行、文档仓库
+  链接或 `[skip-doc-check]` 时**阻止提交**（`exit 2`）。钩子自身异常一律放行（fail-open）。
+
+  它扫的是**即将执行的命令文本**而非仓库里的提交信息——`PreToolUse` 触发时提交尚未
+  产生，而 `-m` 的内容与 `-F - <<EOF` 的 heredoc 正文都在那个字符串里，两种常见写法均可覆盖。
+
+- **事后提示**（CI）：`doc-sync-check.yml` 在每次 push 用 `github.event.commits` 载荷
+  分析提交信息（无需 checkout），若代码改动无文档声明，在 Job Summary 红字提示并打
+  `::warning::`。**非阻断**（直推 main 无法事前 gate）。
+
+写「文档: 不影响任何文档描述」也算合规——关键是想过这件事并留下判断。
