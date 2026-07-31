@@ -5,7 +5,7 @@
 本项目 **仅作学习研究使用，不用于任何商业用途**。
 
 - **本文档站的全部内容** 按照 **[CC BY-NC-SA 4.0](https://github.com/MagirecoCN-Revival-Project/magireco-cnv-docs/blob/main/LICENSE)** 授权——散文、表格、图示、代码示例一律如此，**没有例外条款**。原因见下节；许可原文见 [`LICENSE`](https://github.com/MagirecoCN-Revival-Project/magireco-cnv-docs/blob/main/LICENSE)，项目侧说明见 [`NOTICE.md`](https://github.com/MagirecoCN-Revival-Project/magireco-cnv-docs/blob/main/NOTICE.md)；
-- 本项目的 **代码部分**（客户端 `patch/`、`cnv-native/`、`tools/`，服务端 `cmd/`、`internal/` 等我方原创代码）在**代码仓库里**按照 **[GPLv3](https://github.com/MagirecoCN-Revival-Project/magireco-cnv-client/blob/main/LICENSE)** 协议开源；
+- 本项目的 **代码部分**（客户端 `patch/`、`cnv-native/`、`tools/`，服务端 `cmd/`、`internal/` 等我方原创代码）在**代码仓库里**按照 **[GPLv3](https://github.com/MagirecoCN-Revival-Project/magireco-cnv-client/blob/main/LICENSE)** 协议开源，涉及哪些仓库见下文「要复用代码，请从代码仓库取」；
 - **原版代码部分**（反编译得到的 smali、原版 assets、原版 `.so` 等）仅供参考，版权归属原版权方；
 - 本项目 **与魔法少女小圆、魔法纪录游戏的版权方和著作权方没有任何联系**。如有侵权，请联系我们删除。
 
@@ -37,10 +37,15 @@ CC BY-NC-SA **不是**自由文化许可：它禁止商业性使用。这与本�
 文档里的代码示例同样以 CC BY-NC-SA 授权，但这**不影响**同一段代码在代码仓库里的
 GPLv3 许可——GPLv3 授予的权利不可撤销，抄进文档并不能收回它。
 
-所以：本站的 NC 限制**不会传染**给代码仓库里的代码。要商业使用，从
-[客户端](https://github.com/MagirecoCN-Revival-Project/magireco-cnv-client) /
-[服务端](https://github.com/MagirecoCN-Revival-Project/magirecocn-resource-server)
-仓库取，那里是 GPLv3。
+所以：本站的 NC 限制**不会传染**给代码仓库里的代码。要复用请从下列仓库取，那里是 GPLv3：
+
+- [安卓客户端 `magireco-cnv-client`](https://github.com/MagirecoCN-Revival-Project/magireco-cnv-client)
+- [网页客户端 `magireco-web-client`](https://github.com/MagirecoCN-Revival-Project/magireco-web-client)
+- [资源分发服务端 `magirecocn-resource-server`](https://github.com/MagirecoCN-Revival-Project/magirecocn-resource-server)
+- [API 服务端 `magirecocn-api-server`](https://github.com/MagirecoCN-Revival-Project/magirecocn-api-server)
+
+部分仓库另带 GPLv3 第 7 条允许的附加条款（`LICENSE.additional-terms`，限于出处标注与
+名称使用），以各仓库自身的 `LICENSE*` 文件为准。
 :::
 
 ::: warning 游戏原始素材不在授权范围内

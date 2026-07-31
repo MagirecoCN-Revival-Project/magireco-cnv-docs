@@ -61,8 +61,13 @@ CC BY-NC-SA 4.0 授权。BY-NC-SA 是 copyleft——引用其内容的作品**�
 
 本项目的代码以 GPLv3 开源：
 
-- 客户端 <https://github.com/MagirecoCN-Revival-Project/magireco-cnv-client>
-- 服务端 <https://github.com/MagirecoCN-Revival-Project/magirecocn-resource-server>
+- 安卓客户端 <https://github.com/MagirecoCN-Revival-Project/magireco-cnv-client>
+- 网页客户端 <https://github.com/MagirecoCN-Revival-Project/magireco-web-client>
+- 资源分发服务端 <https://github.com/MagirecoCN-Revival-Project/magirecocn-resource-server>
+- API 服务端 <https://github.com/MagirecoCN-Revival-Project/magirecocn-api-server>
+
+其中部分仓库另带 GPLv3 第 7 条允许的附加条款（`LICENSE.additional-terms`，限于出处
+标注与名称使用），以各仓库自身的 `LICENSE*` 文件为准。
 
 把一段代码抄进文档并以 CC 授权，**不会也无法收回**它在代码仓库里已经给出的 GPLv3
 许可——GPLv3 授予的权利不可撤销。
@@ -86,6 +91,6 @@ CC BY-NC-SA 4.0 授权。BY-NC-SA 是 copyleft——引用其内容的作品**�
 | 内容 | 出处 | 许可 |
 |---|---|---|
 | 部分资料整理、术语、数据表 | 中文 Wiki <https://magireco.moe/> | CC BY-NC-SA 4.0 |
-| 引述的本项目源码 | 上列两个代码仓库 | GPLv3（在其仓库中） |
+| 引述的本项目源码 | 上列各代码仓库 | GPLv3（在其仓库中） |
 | 游戏格式 / 符号 / 命令码等的引述 | 游戏客户端（互操作性描述） | 权利归原权利人，未再许可 |
 | 游戏文本 / 美术 / 音频 | 原版权方 | 权利归原权利人，未再许可 |

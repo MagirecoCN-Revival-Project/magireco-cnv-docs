@@ -1,12 +1,14 @@
 # 上游游戏后端 API 清单
 
-::: warning 这一页描述的不是本服务端
-本仓库的服务端是**带认证的代理壳子**，真正的游戏后端（Totentanz / 官方 `magica` API）
-不由我们掌控。本页记录的是**上游那套 API 的形状**，来源是社区留存的历史流量抓包。
+::: warning 这一页描述的不是我们自己的服务端
+[资源分发服务端](https://github.com/MagirecoCN-Revival-Project/magirecocn-resource-server)
+是**带认证的代理壳子**，真正的游戏后端（Totentanz / 官方 `magica` API）不由我们掌控。
+本页记录的是**上游那套 API 的形状**，来源是社区留存的历史流量抓包。
 
-它的用途只有一个：万一将来要自建游戏后端（而不是继续代理），这份清单就是规格基线。
-本仓库现有的 `/client/*`、`/account/*` 契约与本页**完全无关**，不要混淆——
-那些契约见 [客户端握手协议](/protocol/client-server)。
+它的用途只有一个：万一将来要自建游戏后端（而不是继续代理），这份清单就是规格基线——
+[API 服务端](https://github.com/MagirecoCN-Revival-Project/magirecocn-api-server)
+走的正是这条路。我们自己的 `/client/*`、`/account/*` 契约与本页**完全无关**，
+不要混淆——那些契约见 [客户端握手协议](/protocol/client-server)。
 :::
 
 ## 数据来源与可信度
@@ -112,9 +114,10 @@ payload——它本质上是 master data（cards / pieces / enemies）的一次 
 
 ## 机器可读规格
 
-规格放在仓库根的 `spec/upstream-api/`（205 个端点 / 64,961 条响应侧键路径 / 11 MB），
-**不在 `docs/` 内**——它有十几 MB，放进文档站会被打包进构建产物，而它的读者是写代码
-的人不是看站的人。格式约定与使用注意见
+规格放在 [`magirecocn-resource-server`](https://github.com/MagirecoCN-Revival-Project/magirecocn-resource-server)
+仓库根的 `spec/upstream-api/`（205 个端点 / 64,961 条响应侧键路径 / 11 MB），**不在本文档
+仓库内**——它有十几 MB，放进文档站会被打包进构建产物，而它的读者是写代码的人不是看站的人。
+格式约定与使用注意见
 [`spec/upstream-api/README.md`](https://github.com/MagirecoCN-Revival-Project/magirecocn-resource-server/blob/main/spec/upstream-api/README.md)。
 
 ```

@@ -52,10 +52,18 @@ npm run docs:build    # 构建验证（提交前必跑）
 
 > 改代码的 PR 里必须写明对应的文档改动——链接到本仓库的 PR，或说明为何不需要改文档。
 
-两个代码仓库的 CI 会就此提醒。相关仓库：
+代码仓库的 CI 会就此提醒。相关仓库：
 
-- 客户端 <https://github.com/MagirecoCN-Revival-Project/magireco-cnv-client>
-- 服务端 <https://github.com/MagirecoCN-Revival-Project/magirecocn-resource-server>
+| 仓库 | 是什么 |
+|---|---|
+| [`magireco-cnv-client`](https://github.com/MagirecoCN-Revival-Project/magireco-cnv-client) | 安卓客户端（反编译 + 补丁 + native hook） |
+| [`magireco-web-client`](https://github.com/MagirecoCN-Revival-Project/magireco-web-client) | 网页版客户端 |
+| [`magirecocn-resource-server`](https://github.com/MagirecoCN-Revival-Project/magirecocn-resource-server) | **资源分发服务端**：代理 + 账号认证 + 资源分发，适合没有自己后端的部署者 |
+| [`magirecocn-api-server`](https://github.com/MagirecoCN-Revival-Project/magirecocn-api-server) | **API 服务端**：自建的游戏后端内核，适合能搭完整服务器的部署者 |
+| [`magirecocn-homepage`](https://github.com/MagirecoCN-Revival-Project/magirecocn-homepage) | 项目主页 |
+
+> 站内目前写的「服务端」默认指 `magirecocn-resource-server`；`magirecocn-api-server`
+> 的文档尚未并入本站。
 
 ## 许可
 
