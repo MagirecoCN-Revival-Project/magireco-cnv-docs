@@ -129,6 +129,157 @@
 [Web 化可行性评估 · Phase 0 结论](/client/web-port-feasibility#phase-0-结论-战斗是客户端权威)。
 :::
 
+## WebView ↔ 引擎命令桥（98 个命令，实证）
+
+元游戏前端（`/magica/*` 那套 WebView 应用）不直接操作引擎，而是通过一条**命令桥**
+让 native 干活：播 BGM、推场景、加 Live2D、放过场动画、发本地通知……
+
+这条桥的**完整命令表就在底包里**——`assets/package/web/test/config.js`，98 个命令码，
+是 f4samurai 留下的开发测试页的一部分。旁边的 `command.html` / `touch2.html` /
+`command.js` 是能跑的测试台，逐个演示这些命令怎么调。
+
+::: tip 为什么这对 Web 化很关键
+它等于一份**「要把元游戏跑进浏览器，需要用 Web 技术顶替掉的 native 能力清单」**，
+而且一条不落、带官方命名。更重要的是：**它是静态的、已经在我们仓库里**，
+不依赖任何还活着的服务器——与前端应用本身（只能从活服务器抓）性质完全不同。
+:::
+
+### 线格式
+
+JS 侧的封装（`command.js` 原样）：
+
+```js
+function command(id, pram) {
+  var message = "game:" + id + "," + pram;   // 载荷格式：game:<命令码>,<参数>
+  try {
+    webkit.messageHandlers.gameCommand.postMessage(message);   // iOS 传输
+  } catch (e) {
+    alert(message);
+  }
+}
+```
+
+**载荷是 `game:<命令码>,<参数>`，两端一致；传输方式两个平台不同**——所以测试页里
+那个 `try/catch` 不是防御性编程，是因为它写的是 iOS 分支。Android 侧从 smali 可读出：
+
+| 环节 | Android 实现 |
+|---|---|
+| JS 可见的桥对象 | `androidCommand`（`WebViewImpl` 构造里 `addJavascriptInterface(new Javascript(), "androidCommand")`） |
+| 唯一的 `@JavascriptInterface` 方法 | `jsCallback(String)`，内部 `startsWith("game")` 过滤 |
+| 另一条传输 | `mJsScheme = "game"`，即导航到 `game:` URL 由 `shouldOverrideUrlLoading` 拦截 |
+| 过 JNI | `Java_jp_f4samurai_web_WebViewHelper_onJsCallback` |
+| C++ 落点 | `web::WebViewImpl::onJsCallback(std::string)` → `web::WebViewManager::jsCallback` → `web::WebView::setOnJSCallback` 注册的处理器 |
+
+**反向（引擎 → JS）** 靠在页面里求值全局函数，native 库里能直接 `strings` 出调用点：
+
+```
+nativeCallback("GachaResult");
+nativeCallback("SCENE_PUSH_EVENT_RAID");
+nativeCallback("SCENE_SHOW_REWARD_EVENT_RAID");
+nativeCallback("purchasePopup");
+getBaseData(<json>)      // 批量回传 base64 图片，供页面直接贴成背景
+```
+
+::: warning 我们的 `CnvBridge` 与游戏的桥是两套，不要混
+补丁在游戏注册完 `androidCommand` 之后紧接着插入
+`WebViewInterceptor.installJsBridge(...)`，把自己的 `CnvBridge` 注册上去。
+两者对象名不同、互不干扰。`CnvBridge` 的能力与来源闸见
+[WebView 拦截与状态重放](/client/webview)。
+:::
+
+### 命令表
+
+命令码按功能分段，段内留有空洞（官方预留）。以下为 `config.js` 原样：
+
+#### 数据与设备 `<100`（24 个）
+
+| 码 | 名称 | 码 | 名称 |
+|---|---|---|---|
+| `1` | `DATA_CLEAR_WEB_CACHE` | `25` | `DATA_CLOSE_APP` |
+| `2` | `DATA_REMOVE_ASSET` | `30` | `DATA_GET_FONT` |
+| `5` | `DATA_CALL_TOUCHES_BEGIN` | `40` | `DATA_GET_QUEST_RESULT_JSON` |
+| `6` | `DATA_CALL_TOUCHES_MOVE` | `50` | `DATA_OPEN_URL` |
+| `7` | `DATA_CALL_TOUCHES_END` | `60` | `DATA_GET_BASE64` |
+| `10` | `DATA_AWAKE_PURCHASE` | `62` | `DATA_SET_CLIPBOARD` |
+| `11` | `DATA_PURCHASE_ITEM` | `70` | `DATA_GET_REWARD` |
+| `12` | `DATA_GET_PURCHASE_STATE` | `71` | `DATA_DELETE_REWARD` |
+| `20` | `DATA_GET_SNS_USER_ID` | `90` | `DATA_OPEN_EDIT_BOX` |
+| `21` | `DATA_GET_APP_VERSION` | `95` | `DATA_GET_QUEST_REPLAY_DATA_ID` |
+| `22` | `DATA_GET_DOWNLOAD_CONFIG` | `96` | `DATA_DELETE_QUEST_REPLAY_DATA` |
+| `23` | `DATA_GET_DEVICE_INFO` | `97` | `DATA_GET_QUEST_REPLAY_VERSION` |
+
+#### 音效 `100–199`（14 个）
+
+| 码 | 名称 | 码 | 名称 |
+|---|---|---|---|
+| `100` | `SOUND_BGM_PLAY` | `111` | `SOUND_SE_STOP` |
+| `101` | `SOUND_BGM_STOP` | `114` | `SOUND_SE_SET_VOL` |
+| `102` | `SOUND_BGM_RESUME` | `115` | `SOUND_SE_GET_VOL` |
+| `103` | `SOUND_BGM_PAUSE` | `120` | `SOUND_VO_PLAY` |
+| `104` | `SOUND_BGM_SET_VOL` | `121` | `SOUND_VO_STOP` |
+| `105` | `SOUND_BGM_GET_VOL` | `124` | `SOUND_VO_SET_VOL` |
+| `110` | `SOUND_SE_PLAY` | `125` | `SOUND_VO_GET_VO` |
+
+#### 场景切换 `200–399`（24 个）
+
+| 码 | 名称 | 码 | 名称 |
+|---|---|---|---|
+| `201` | `SCENE_PUSH_WEBVIEW` | `281` | `SCENE_PUSH_ARENA` |
+| `202` | `SCENE_POP_WEBVIEW` | `282` | `SCENE_POP_ARENA` |
+| `211` | `SCENE_PUSH_LOADING` | `291` | `SCENE_PUSH_CHAT` |
+| `221` | `SCENE_PUSH_DOWNLOAD` | `292` | `SCENE_POP_CHAT` |
+| `231` | `SCENE_PUSH_GACHA` | `301` | `SCENE_PUSH_TOP` |
+| `241` | `SCENE_PUSH_EVOLUTION` | `302` | `SCENE_POP_TOP` |
+| `251` | `SCENE_PUSH_MEMORIA_COMPOSE` | `341` | `SCENE_PUSH_ANOTHER_QUEST` |
+| `261` | `SCENE_PUSH_STORY` | `342` | `SCENE_POP_ANOTHER_QUEST` |
+| `271` | `SCENE_PUSH_QUEST` | `343` | `SCENE_PLAY_ANOTHER_QUEST` |
+| `272` | `SCENE_POP_QUEST` | `351` | `SCENE_PUSH_MOVIE` |
+| `275` | `SCENE_PUSH_QUEST_REPLAY` | `361` | `SCENE_PUSH_MOVIE_CHAR` |
+| `276` | `SCENE_SEND_QUEST_REPLAY_DATA` | `371` | `SCENE_PUSH_EVENT_TEST` |
+
+#### 显示与演出 `400–499`（20 个）
+
+| 码 | 名称 | 码 | 名称 |
+|---|---|---|---|
+| `400` | `DISPLAY_SET_WEBVIEW_VISIBLE` | `440` | `DISPLAY_ADD_MOVIE` |
+| `410` | `DISPLAY_CHANGE_BG` | `450` | `DISPLAY_PLAY_COMPOSE_EFFECT` |
+| `420` | `DISPLAY_ADD_L2D` | `451` | `DISPLAY_SHOW_COMPOSE_RESULT` |
+| `421` | `DISPLAY_REMOVE_L2D` | `452` | `DISPLAY_HIDE_COMPOSE` |
+| `422` | `DISPLAY_PALY_L2D_MOTION` | `460` | `DISPLAY_PLAY_COMPOSE_MAGIA` |
+| `430` | `DISPLAY_ADD_MINI` | `465` | `DISPLAY_PLAY_AWAKE_ABILITY` |
+| `431` | `DISPLAY_REMOVE_MINI` | `470` | `DISPLAY_PLAY_NORMAL_GACHA_TOP` |
+| `432` | `DISPLAY_PLAY_MINI_MOTION` | `471` | `DISPLAY_STOP_NORMAL_GACHA_TOP` |
+| `433` | `DISPLAY_PLAY_MINI_EFFECT` | `490` | `DISPLAY_PLAY_MEMORIA_TOP` |
+| `434` | `DISPLAY_STOP_MINI_EFFECT` | `491` | `DISPLAY_STOP_MEMORIA_TOP` |
+
+#### 本地通知 `500–599`（10 个）
+
+| 码 | 名称 | 码 | 名称 |
+|---|---|---|---|
+| `500` | `NOTI_GET_CONF_PNOTE` | `511` | `NOTI_TURN_ON_WEEKLY_QUEST` |
+| `501` | `NOTI_AWAKE_PNOTE` | `512` | `NOTI_TURN_OFF_WEEKLY_QUEST` |
+| `502` | `NOTI_TURN_ON_PNOTE` | `520` | `NOTI_GET_CONF_AP_FULL` |
+| `503` | `NOTI_TURN_OFF_PNOTE` | `521` | `NOTI_TURN_ON_AP_FULL` |
+| `510` | `NOTI_GET_CONF_WEEKLY_QUEST` | `522` | `NOTI_TURN_OFF_AP_FULL` |
+
+#### 显示与演出（续） `600+`（6 个）
+
+| 码 | 名称 | 码 | 名称 |
+|---|---|---|---|
+| `600` | `DISPLAY_PLAY_FORMATION` | `611` | `DISPLAY_STOP_WEEKLY_QUEST_TOP` |
+| `601` | `DISPLAY_STOP_FORMATION` | `620` | `DISPLAY_PLAY_FORMATION_ENEMY` |
+| `610` | `DISPLAY_PLAY_WEEKLY_QUEST_TOP` | `621` | `DISPLAY_STOP_FORMATION_ENEMY` |
+
+::: warning 表是底包版本的快照
+这份表来自当前底包（totentanz 1.2.0_r128 / 游戏 3.1.9）的 `config.js`。
+换底包时应重新提取比对——命令码是引擎与前端的私有约定，官方没有兼容性承诺。
+提取方式：
+
+```bash
+grep -oE '^\s*[A-Z_0-9]+\s*:\s*[0-9]+' assets/package/web/test/config.js
+```
+:::
+
 ## 综合结论
 
 1. **`.so` = 运行时代码**（渲染/音频/演出/网络/下载 + 静态中间件），**不是游戏数据库**；
@@ -148,6 +299,7 @@
 - 引擎四子系统运行逻辑 → [Native 引擎逻辑（互操作重建）](/client/native-engine)
 - 运行时 hook 如何拦这些子系统 → [Native Hook 层](/client/native-hook)
 - 资源下载与离线包（数据从哪来） → [资源下载与离线包](/client/resource-flow)
+- WebView 拦截与我们自己的 JS 桥 → [WebView 拦截与状态重放](/client/webview)
 - WebView 前端与 API 缓存重放 → [WebView 拦截与状态重放](/client/webview)
 - 战斗权威性结论与 Web 化路线 → [Web 化可行性评估](/client/web-port-feasibility)
 - 序章重看入口的下游设计 → [序章完成后静默进主页（设计草案）](/client/prologue-return)
