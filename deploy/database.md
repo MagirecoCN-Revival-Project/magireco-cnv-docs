@@ -93,7 +93,7 @@ export CNV_SKIP_MIGRATE=1
 | 设备/封禁 | `devices`, `bans` |
 | 玩家数据 | `saves`(云存档) |
 | 验证 | `email_codes`, `cap_challenges`, `cap_tokens` |
-| 配置/资源 | `config`(KV), `mirror_groups`, `mirrors`, `hot_bundles`, `offline_package` |
+| 配置 | `config`(KV) |
 | 运维 | `audit_log`, `secondary_nodes` |
 
 ## 备份建议

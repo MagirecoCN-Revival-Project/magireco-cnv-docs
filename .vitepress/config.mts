@@ -221,7 +221,7 @@ export default defineConfig({
             { text: '运行与编写测试', link: '/contributing/server/testing' },
             { text: '存储层与多方言抽象', link: '/contributing/server/store-dialects' },
             { text: '调度器与后台任务', link: '/contributing/server/scheduler' },
-            { text: '离线整包打包器', link: '/contributing/server/packer' },
+            { text: '资产分发面', link: '/contributing/server/resource-plane' },
             { text: '发布流程与 CI', link: '/contributing/server/release-ci' },
           ],
         },

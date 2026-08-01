@@ -90,11 +90,11 @@ sequenceDiagram
 
 ## authTriple:握手后的请求如何鉴权
 
-`/client/init` 之后的端点(`online-download`、`heartbeat` 等)都要带 **authTriple**:
+`/client/init` 之后的端点(现役只有 `heartbeat`)要带 **authTriple**:
 
 ```mermaid
 flowchart TB
-    REQ["POST /client/online-download<br/>{device_id, access_token, signature, ...}"]
+    REQ["POST /client/heartbeat<br/>{device_id, access_token, signature}"]
     REQ --> RW["readAndRewind<br/>(body 只能读一次,读出后塞回)"]
     RW --> WF{access_token<br/>格式合法?}
     WF -->|否| E1["401 missing_access_token"]

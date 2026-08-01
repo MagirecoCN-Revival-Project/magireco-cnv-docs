@@ -127,7 +127,8 @@ func TestInit_MyNewField(t *testing.T) {
 | `store/store_test.go` | 全表 CRUD 烟雾测试(含 RETURNING/LastInsertId 路径) |
 | `store/sliding_test.go` | 会话滑动续期三场景 |
 | `middleware/limiter_test.go`、`clientip_test.go` | 限流、trust proxy 取 IP |
-| `packer/packer_test.go` | 打包产物、retention、元数据冲突 |
+| `resourceauth/token_test.go` | 令牌签发/校验、篡改拒绝、时钟窗、跨仓库向量 |
+| `api/resource/handler_test.go` | 鉴权、Range、目录穿越与符号链接逃逸、清单形状与分页 |
 
 ## 改动时的测试纪律
 

@@ -101,7 +101,8 @@ flowchart LR
 | `internal/{control,directory,panelstore}` | 面板↔节点管控 / 签名目录 / 面板存储 | [多节点协调](/server/multi-node) |
 | `internal/store` | 方言抽象 + 全部 SQL | [数据模型](/server/data-model) |
 | `internal/{auth,middleware}` | 哈希/令牌/鉴权/限流 | [安全机制](/security/) |
-| `internal/{scheduler,packer,capworker,proxy}` | 后台任务 / 打包 / PoW / 反代 | [贡献者指南](/contributing/server/) |
+| `internal/{scheduler,capworker,proxy}` | 后台任务 / PoW / 反代 | [贡献者指南](/contributing/server/) |
+| `internal/{api/resource,resourceauth}` | 资产分发面与它的令牌 | [资产分发面](/contributing/server/resource-plane) |
 
 ## 继续阅读
 

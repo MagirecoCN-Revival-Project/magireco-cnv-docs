@@ -11,7 +11,8 @@ cmd/
   admintool/    运维 CLI:create-admin / reset-admin / 节点目录签名 / ca 离线证书签发
 internal/
   api/
-    client/     /client/* 6 个客户端握手接口  ← 协议保真重地
+    client/     /client/* 握手与心跳(现役 2 个端点)  ← 协议保真重地
+    resource/   边缘资产分发面:Bearer 鉴权 + S3 清单 + Range
     account/    /auth/login 管理员登录(玩家账号已移交 API 服务端)
     admin/      /admin/* 全部管理后台接口
     captcha/    /api/* PoW 验证码
@@ -25,9 +26,9 @@ internal/
   middleware/   panic 恢复、日志、安全头、鉴权、限流、trust proxy、CORS(面板跨域直连节点)
   capworker/    PoW 验证码核心(挑战/兑换)
   autoban/      自动封禁:多路滥用信号(篡改/心跳伪造/资源高频/验证码连败/多账号)→ 写 bans;阈值存 config 表,后台可调
-  scheduler/    定时任务:封禁过期 / 会话 GC / 心跳超时 / 自动打包
-  packer/       离线整包打包器
+  scheduler/    定时任务:封禁过期 / 会话 GC / 心跳超时
   clienttoken/  自包含的 Ed25519 签名会话令牌(签发/校验,校验方不必与签发方共库)
+  resourceauth/ 资产令牌(asset_auth)的签发与校验;与 API 服务端有一份相同拷贝
   pki/          节点身份证书链:签发、链校验、双向鉴权、自动续期、紧急吊销
   config/       CNV_* 环境变量加载与校验
 web/            前端:React + 浏览器内 Babel,无构建步骤;由**面板**统一托管(节点不再托管 WebUI)
@@ -67,6 +68,7 @@ flowchart LR
 | 包 | 路由前缀 | 职责 |
 |---|---|---|
 | `client` | `/client` | 握手协议(最核心,协议保真) |
+| `resource` | `/res`(`CNV_PRIMARY_RES_PATH`) | 资产分发:Bearer 鉴权 + S3 `ListBucketResult` 清单 + Range 取文件 |
 | `account` | `/auth` | **仅管理员登录**。玩家登录/注册/找回/云存档已移交 API 服务端 |
 | `admin` | `/admin` | 管理后台全部接口 |
 | `captcha` | `/api` | PoW 挑战/兑换 |
@@ -80,7 +82,7 @@ flowchart LR
 | `store.go` | `Store` 结构、`Open`(按 DSN 识别驱动)、连接池、`rebind`/`query`/`exec` |
 | `dialect.go` | `Dialect` 接口 + 三方言实现(占位符、UPSERT、RETURNING/LastInsertId) |
 | `migrate.go` | 内嵌迁移执行 |
-| `types.go` | 所有领域结构体(`Account`/`Ban`/`Mirror`…) |
+| `types.go` | 所有领域结构体(`Admin`/`Ban`/`Device`…) |
 | `account.go`/`etc.go` | 各表的 CRUD 方法 |
 
 业务代码不直接碰 `database/sql`,都通过 `Store` 的方法。详见 [多方言抽象](/contributing/server/store-dialects)。
@@ -101,16 +103,19 @@ flowchart LR
 | 文件 | 内容 |
 |---|---|
 | `handlers.go` | `Handler` 结构、`Routes` 路由表、账号/封禁/心跳/任务/审计等通用处理器 |
-| `hotupdate.go` | 热更新包自托管:服务端拉取远端 URL 或接收上传 → 校验 ZIP → 存托管目录 → 写 DB |
-| `limits.go` | 运行时可调大小上限（`Limits` 结构 + `BodyLimitFunc` 联动）:全局请求体 / 热更新包上限，初值取 env，管理员在后台改后即时生效（`atomic.Int64`）|
-| `mirror_stats.go` | 镜像流量统计与限额（`MirrorTracker`）:内存累计速度/流量 → 每 30s 通过 `scheduler.MirrorFlusher` 接口 Flush 到 `mirror_traffic` 表；超日限额或速度上限时 `IsEnabled()` 返回 false，`/client/online-download` 不再派发该镜像 |
-| `pipeline.go` | 资源同步管道（`GET/PUT /admin/pipeline`、`POST /admin/pipeline/sync`）:配置持久化到 `config` 表（键 `pipeline`）；`POST /sync` 在后台 goroutine 里执行 GitHub Release 拉取 → AWS S3 PutObject（SigV4 UNSIGNED-PAYLOAD）→ CDN 缓存刷新（Cloudflare / 自定义 HTTP）；离线包打包后可选上传到独立 S3 桶。密钥全部由 env 变量提供，配置表只存 env 变量名。 |
+| `limits.go` | 运行时可调的全局请求体上限（`Limits` 结构 + `BodyLimitFunc` 联动）:初值取 env，管理员在后台改后即时生效（`atomic.Int64`）|
 
-### 后台任务三件套
+::: tip `hotupdate.go` / `mirror_stats.go` / `pipeline.go` 已删除(2026-08)
+三个文件随 APK 整包分发面一并去掉:热更新包自托管、镜像流量统计与限额、
+GitHub Release → S3 → CDN 资源同步管道。它们服务的端点、数据表与后台页面都不在了。
+:::
+
+### 后台任务两件套
 
 - `scheduler`:周期跑清理任务,详见 [调度器](/contributing/server/scheduler)。
-- `packer`:把资源目录打成离线整包,详见 [打包器](/contributing/server/packer)。
 - `capworker`:PoW 验证码,详见 [PoW 验证](/security/captcha-pow)。
+
+（原来还有第三件 `packer`——离线整包打包器,已随整包分发面删除。）
 
 ### `web/` —— 前端面板
 

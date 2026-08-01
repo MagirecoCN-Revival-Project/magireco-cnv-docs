@@ -76,7 +76,7 @@ flowchart TB
 
 ## 深度防御:会话内签名一致性
 
-光在握手时查一次还不够。`/client/init` 之后的每个端点(`online-download`、`heartbeat` 等)都带 authTriple,其中也有 `signature`。中间件会复核:
+光在握手时查一次还不够。`/client/init` 之后的端点(现役只有 `heartbeat`)都带 authTriple,其中也有 `signature`。中间件会复核:
 
 ```mermaid
 sequenceDiagram
@@ -86,7 +86,7 @@ sequenceDiagram
     S->>S: 写入 client_sessions.signature = X
     S-->>C: access_token
     Note over C,S: ……后续请求……
-    C->>S: /client/online-download signature=Y(变了!)
+    C->>S: /client/heartbeat signature=Y(变了!)
     S->>S: Y ≠ 会话里的 X
     S->>S: 记 changed_mid_session 审计 + 作废会话
     S-->>C: 403 signature_rejected
@@ -124,7 +124,7 @@ export CNV_CHANNEL_WHITELIST='normal,internal-test'
 诚实地说,签名校验**不是绝对**的:
 
 - 它防的是"改了包还想连你的服务器"。如果攻击者搭自己的服务器,这道闸门管不着(但那也就脱离了你的生态)。
-- 抓包重放仍可能 —— 但会话内 signature 一致性 + 短时 resource_token + 限流共同抬高成本。
+- 抓包重放仍可能 —— 但会话内 signature 一致性 + 分钟级的资产令牌 + 限流共同抬高成本。
 - 它依赖客户端诚实上报签名 —— 但**改包后客户端无法上报一个它没有私钥的签名**,这正是闸门的力量所在。
 
 纵深防御的意义就在于:单层有局限,叠起来让攻击不划算。

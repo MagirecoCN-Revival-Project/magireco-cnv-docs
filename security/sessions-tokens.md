@@ -122,27 +122,42 @@ flowchart TB
 
 "记住登录"的实现。安全权衡:被盗 token 持续使用也会自动续命,所以 TTL 不设过长(30 天)。需要时可强制下线(改密/找回)。
 
-## 资源 token:无状态短时签名
+## 资产 token:无状态短时签名
 
-`/client/online-download` 返回的 `resource_token` 不走数据库,而是 **HMAC 短时签名**:
+`/client/init` 下发的 `asset_auth.token`(旧称 `resource_token`)不走数据库,
+而是 **HMAC 短时签名**:
 
-```go
-bucket := now / windowSec          // 时间窗编号
-mac := hmac.New(sha256.New, s3Secret)
-mac.Write(deviceID + "|" + bucket)
-token := base64.RawURLEncoding(mac.Sum(nil))
+```
+cnva1.<base64url(device_id)>.<时间桶>.<base64url(HMAC-SHA256)>
 ```
 
 ```mermaid
 flowchart LR
-    D["device_id + 当前时间窗"] --> H["HMAC-SHA256(密钥)"]
-    H --> T["resource_token<br/>(短时有效)"]
-    T --> V["资源服务端可独立验证<br/>无需查库"]
+    D["device_id + 当前时间桶"] --> H["HMAC-SHA256(密钥)"]
+    H --> T["asset_auth.token<br/>(分钟级有效)"]
+    T --> V["边缘节点独立验证<br/>无需查库"]
 ```
 
-- 绑定 `device_id` + **时间窗**(默认 30 秒一个窗),过窗即失效。
-- 用 HMAC,**服务端可独立验证**,无需存储 —— 资源节点拿密钥就能验,天然适配多节点。
-- 签名根密钥(`CNV_RESOURCE_TOKEN_SECRET`,不设则首次启动自动生成 32 字节并持久化)可在后台轮换。
+- **自描述**:device_id 编进令牌本身,校验方从令牌里取回,不必让客户端额外送一个头,
+  也不必让边缘节点连数据库;
+- 绑定 `device_id` + **时间桶**(`CNV_RESOURCE_TOKEN_WINDOW_SEC`,默认 300 秒一格),
+  接受当前桶与上一个桶,所以实际有效期在 5–10 分钟之间浮动;
+- 用 HMAC,**边缘节点拿密钥就能独立验证**,无需存储 —— 天然适配多节点;
+- 签名根密钥 `CNV_RESOURCE_TOKEN_SECRET`,≥16 字节。业务节点不设则首次启动自动生成
+  32 字节并持久化;**边缘节点没有数据库,必须显式配置且与业务节点一致**。
+
+::: tip 为什么这里用对称密钥,而 access_token 用 Ed25519
+会话令牌的校验方**不该有能力凭空造出身份**,所以必须非对称。资产令牌相反:它的全部
+权限就是"读资产",而校验方(边缘节点)本来就持有资产——它能自己签一个也不会因此多
+拿到任何东西。对称方案省一次签名运算、省一套密钥分发,在每个文件请求都要验一次的
+路径上这是实打实的。
+:::
+
+::: danger 刻意不让边缘节点拿到 access_token
+边缘节点是信任树里最外一层(小时级证书,可能是第三方镜像)。把客户端的身份凭证交给
+它,等于每取一个文件就把身份泄露一次。拆成两把令牌之后,边缘节点最多知道"某个设备
+正在取文件"。
+:::
 
 ## 节点连接密钥(管控通道)
 
@@ -175,7 +190,7 @@ flowchart TB
 | client access_token | 冒充该设备调 `/client/*` | 自包含签名（伪造需要私钥）+ device_id 绑定 + signature 一致性校验 + 7 天过期 + 封禁 |
 | account_token | 冒充玩家读写云存档 | 安全 cookie + 改密下线 + 30 天上限 |
 | admin_token | 管理后台操作 | 安全 cookie + 7 天短 TTL + 审计留痕 |
-| resource_token | 短时下载资源 | 30 秒时间窗,过期即废 |
+| asset_auth.token | 短时读取资产(仅此) | 5–10 分钟时间桶,过期即废;不含身份,拿不到账号/存档 |
 | 节点连接密钥 | 冒充面板向节点发管控指令 | 等时比较 + 32 字节随机 + 管控端口内网隔离 |
 
 设计上**最敏感的 admin 会话 TTL 最短、不续期**;最需要"记住登录"的玩家会话 TTL 长但可强制下线;资源 token 干脆做成几十秒就失效的无状态签名。

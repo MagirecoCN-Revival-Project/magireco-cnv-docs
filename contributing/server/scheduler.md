@@ -12,7 +12,6 @@ flowchart TB
     START --> G2["goroutine: session_gc<br/>300s · 清过期会话"]
     START --> G3["goroutine: heartbeat_sweep<br/>30s · 移除超时在线设备(>120s)"]
     START --> G4["goroutine: secondary_sweep<br/>60s · 删失联副节点(>180s)"]
-    START --> G5["goroutine: auto_package<br/>(若配了打包目录)"]
 ```
 
 | 任务 | 默认周期 | 阈值 | 干什么 |
@@ -21,7 +20,6 @@ flowchart TB
 | `session_gc` | 300s | — | `SessionGC`:删过期的玩家/管理员会话 |
 | `heartbeat_sweep` | 30s | 超时 120s | `Hearts.Sweep`:从**内存**心跳表移除超时设备 |
 | `secondary_sweep` | 60s | 超时 180s | `SecondarySweepStale`:删 `last_seen` 过旧的副节点 |
-| `auto_package` | 检查间隔 ≤60s | 按 `intervalSec` | 定期把资源目录打成离线整包 |
 
 默认值在 `defaults()`:
 
@@ -73,41 +71,16 @@ flowchart LR
     CANCEL --> D2["session_gc 退出"]
     CANCEL --> D3["heartbeat_sweep 退出"]
     CANCEL --> D4["secondary_sweep 退出"]
-    CANCEL --> D5["auto_package 退出"]
 ```
 
-## 自动打包:带锁的特殊任务
+::: warning `auto_package` 与 `mirror_stats_flush` 已删除(2026-08)
+调度器原来还有两个 goroutine:定期把资源目录打成离线整包(带 `InProgress` 进程内锁,
+因为打包耗时且不能并发),以及每 30 秒把内存里累计的镜像流量刷进 `mirror_traffic` 表。
 
-`auto_package` 比其它任务复杂,因为打包耗时且**不能并发**。它每分钟检查一次 `config.auto_package`:
-
-```mermaid
-flowchart TB
-    TICK["每 60s 检查"] --> EN{enabled?}
-    EN -->|否| SKIP["跳过"]
-    EN -->|是| IP{InProgress?}
-    IP -->|是| SKIP
-    IP -->|否| DUE{距 LastRunAt<br/>超过 intervalSec?}
-    DUE -->|否| SKIP
-    DUE -->|是| RUN["runPackOnce:抢锁→打包→落库→释放锁"]
-```
-
-`runPackOnce` 用 `InProgress` 标志当**分布式锁的简化版**(单进程内够用):
-
-```go
-func (s *Scheduler) runPackOnce(ctx, c) {
-    c.InProgress = true
-    s.St.ConfigSet(ctx, "auto_package", c)        // 上锁
-    defer func() {
-        c.InProgress = false
-        c.LastRunAt = time.Now().UnixMilli()
-        s.St.ConfigSet(ctx, "auto_package", c)    // 解锁 + 记录时间
-    }()
-    res, err := packer.RunOnce(ctx, packer.Config{...})
-    // 成功 → OfflinePackageSet 落库(version/sha256/url)
-}
-```
-
-打包完会把产物元数据写进 `offline_package` 表,客户端 `/client/offline-package` 就能拿到新包。检查间隔取 `min(intervalSec, 60s)`,保证你把周期改短时能及时生效。打包器本身见 [离线整包打包器](/contributing/server/packer)。
+两者随 APK 整包分发面一并删除——打包器 `internal/packer`、`offline_package` 与
+`mirror_traffic` 表都不在了。配套的 `MirrorFlusher` 接口(当初是为了避免 scheduler
+直接依赖 admin 包造成循环引用)也一并去掉。
+:::
 
 ## 内存态 vs 持久态
 
@@ -146,5 +119,5 @@ func (s *Scheduler) myTask(ctx context.Context) error {
 
 ## 局限
 
-- **周期在 `Start` 时读一次** `config.tasks`。运行中改后台的周期配置,已起的 ticker 不会热更新 —— 要重启进程才生效(`auto_package` 例外,它每次循环重读)。如需热更新其它任务周期,得改造成每次循环重读。
-- **单进程** —— 多主节点时各自都会跑这些清理任务。对幂等的清理(置失效/删行)无害,但 `auto_package` 的 `InProgress` 锁是进程内的,多主节点可能并发打包。真要多主,需把锁挪到数据库(如 `SELECT ... FOR UPDATE` 或乐观锁)。
+- **周期在 `Start` 时读一次** `config.tasks`。运行中改后台的周期配置,已起的 ticker 不会热更新 —— 要重启进程才生效。如需热更新,得改造成每次循环重读。
+- **单进程** —— 多主节点时各自都会跑这些清理任务。对幂等的清理(置失效/删行)无害。将来若再加**非幂等**的周期任务(当初的 `auto_package` 就是),锁必须放在数据库里(如 `SELECT ... FOR UPDATE` 或乐观锁),进程内锁在多主节点下拦不住并发。

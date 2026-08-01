@@ -4,21 +4,43 @@
 本页中的 `/account/login`、`/account/save/*` 以及注册 / 找回 / 邮箱验证码,
 **已不在资源分发服务端上**——账号系统整体归 API 后端([为什么](/server/data-model))。
 
-资源分发服务端现在只保留 `/client/*`(握手与资源分发)、`/auth/login`(**仅管理员**)
+资源分发服务端现在只保留 `/client/*`(握手与心跳)、`/auth/login`(**仅管理员**)
 与 `/admin/*`。下文关于这些端点的字段与语义描述仍然准确;账号类端点的部分请当作
 **协议记录**读,它们在 API 服务端上继续成立。
 :::
 
-`/client/*` 与 `/account/*` 是游戏客户端与复兴计划服务端之间的契约，共 6 + 4 个端点。
+::: danger APK 整包分发面已删除(2026-08)
+`/client/method-select`、`/client/online-download`、`/client/offline-package`、
+`/client/hot-update` 四个端点**已从服务端删除**,心跳里的 `files[]` 与
+`switch_mirrors` 也一并去掉。
 
-::: danger 唯一真理是已发布的 APK
-客户端是**已签名、已分发**的 APK，字段名与解析逻辑钉死在包里，无法随服务端热改。
-因此契约的仲裁者是客户端 Java 源码（`ClientInit.java` / `ResourceFlow.java` /
-`SaveSyncHelper.java`），而不是服务端实现或本文档。
+它们服务的是 APK 客户端"先把整包资源下完再进游戏"的模型:服务端维护镜像组、
+按文件把设备分派到线路、盯着进度决定换线。网页端不这样工作——它按需逐个取资产,
+取哪个由运行时决定,服务端既不知道也不需要知道。
 
-服务端侧的铁律：**只增不改**——JSON 字段只可新增，不可删除 / 改名 / 改类型 / 改语义；
-新增字段必须可选。变更流程是「先加新字段 → 客户端适配发版 → 双跑过渡 → 再废旧」，
-严禁让旧客户端在过渡期失效。
+**资产分发改由[边缘 resource 节点](#边缘-resource-节点分发面)承担**:`/client/init`
+下发 `asset_auth`,客户端拿它作 Bearer 令牌直接向边缘节点要清单与文件。
+
+下文中这四个端点的小节保留为**协议记录**(说明 Android 专有 API 曾经长什么样),
+并逐个标注了废弃状态。不要照着它们实现新客户端。
+:::
+
+`/client/*` 与 `/account/*` 是游戏客户端与复兴计划服务端之间的契约。现役的 `/client/*` 只剩 2 个端点(`init` / `heartbeat`),另 4 个见上方废弃说明。
+
+::: warning 铁律换了保护对象,不是取消了
+原文写的是"唯一真理是已发布的 APK":客户端是已签名已分发的包,字段名钉死在里面,
+所以服务端只增不改。**这个前提已经不成立**——本代 APK 从未上线、装机量为零,
+仓库已归档。为零个用户维护的兼容层不是保险,是一直要维护还平白多一条降级入口的
+死代码。
+
+铁律本身仍在,只是保护对象变成**网页客户端与将来任何有真实在线用户的客户端**:
+
+- 对**有活跃用户**的客户端:JSON 字段只增不改,不可删除 / 改名 / 改类型 / 改语义;
+  新增字段必须可选;变更走「先加新 → 客户端适配 → 双跑过渡 → 再废旧」。
+- 对 **APK 客户端**:无此义务。可以直接删端点、改语义、去兼容层——本页那四个
+  端点就是这么删的。
+
+判据不是"这个客户端存不存在",而是"**有没有人正在用它**"。
 :::
 
 | 这一侧 | 实现位置 |
@@ -34,17 +56,18 @@
 
 ```mermaid
 flowchart TB
-    INIT["POST /client/init<br/>握手：签发 access_token"]
-    INIT --> MS["POST /client/method-select<br/>选在线/离线下载"]
-    INIT --> OD["POST /client/online-download<br/>取镜像组 + resource_token"]
-    INIT --> OP["POST /client/offline-package<br/>取离线整包元数据"]
-    INIT --> HB["POST /client/heartbeat<br/>上报下载/游戏状态"]
-    INIT --> HU["POST /client/hot-update<br/>取 JS/剧情热更新"]
+    INIT["POST /client/init<br/>握手:签发 access_token + asset_auth"]
+    INIT --> HB["POST /client/heartbeat<br/>保活 / 收封禁与维护通知"]
+    INIT -.asset_auth 作 Bearer.-> EDGE["边缘 resource 节点<br/>GET 清单 / 取文件(Range)"]
 
     style INIT fill:#d6336c,color:#fff
+    style EDGE fill:#1c7ed6,color:#fff
 ```
 
-除 `/client/init` 外，其余 5 个都要带**鉴权三件套**。
+`/client/heartbeat` 要带**鉴权三件套**;`/client/init` 是握手起点,不带。
+
+资产不再经由 `/client/*` 协商——客户端拿 `asset_auth` 直接向边缘节点索取,
+那条路径的契约见[边缘 resource 节点分发面](#边缘-resource-节点分发面)。
 
 ### 客户端的端点常量
 
@@ -56,10 +79,10 @@ flowchart TB
 |---|---|
 | `CLIENT_INIT` | `/client/init` |
 | `CLIENT_HEARTBEAT` | `/client/heartbeat` |
-| —（method-select） | `/client/method-select` |
-| —（online-download） | `/client/online-download` |
-| —（offline-package） | `/client/offline-package` |
-| —（hot-update） | `/client/hot-update` |
+| ~~—（method-select）~~ | ~~`/client/method-select`~~ **已删除** |
+| ~~—（online-download）~~ | ~~`/client/online-download`~~ **已删除** |
+| ~~—（offline-package）~~ | ~~`/client/offline-package`~~ **已删除** |
+| ~~—（hot-update）~~ | ~~`/client/hot-update`~~ **已删除** |
 | `ACCOUNT_LOGIN` | `/account/login` |
 | `ACCOUNT_REGISTER` / `ACCOUNT_FORGOT` | `/account/register` / `/account/forgot` |
 | `ACCOUNT_SAVE_PUT` / `ACCOUNT_SAVE_GET` | `/account/save/put` / `/account/save/get` |
@@ -141,9 +164,9 @@ flowchart TB
     "update_apk_sha256": "<对应渠道 APK 的 sha256>"
   },
   "spoof":    { "fake_version": "1.0.0", "fake_name": "マギレコ" },
-  "features": { "online_download": true, "offline_package": true },
+  "features": { "account_enabled": true },
   "services": { "cap_worker_url": "...", "game_server_host": "..." },
-  "offline_pack": { "min_version": "20250501" }
+  "asset_auth": { "type": "bearer", "token": "cnva1.…", "expires_at": 1785090420 }
 }
 ```
 
@@ -157,12 +180,13 @@ flowchart TB
 | `client.update_url_normal` / `.update_url_internal_test` / `.update_apk_sha256` | 更新 APK 地址（按渠道）与指纹 |
 | `client.latest_version` | **软更新提示**，见[三道更新闸门](#三道更新闸门) |
 | `spoof.fake_version` / `.fake_name` | 向 native 伪造的版本 / 应用名，绕过日服客户端检测 |
-| `features.online_download` / `.offline_package` / `.account_enabled` / `.disabled_message` | 功能开关（默认均 true）+ 关闭提示；`account_enabled=false` 时客户端跳过登录/存档/悬浮窗等全部账号逻辑 |
+| `features.account_enabled` / `.disabled_message` | 账号系统总开关（默认 true）+ 关闭提示；`false` 时客户端跳过登录/存档/悬浮窗等全部账号逻辑。<br/>~~`online_download`~~ / ~~`offline_package`~~ **已删除**——它们控制的端点已不存在,继续下发只会让客户端以为还有那条路可走 |
 | `services.cap_worker_url` / `.game_server_host` / `.proxy_backends[]` | cap-worker 端点、游戏 host、代理后端列表 |
 | `services.game_server_base` | **可选**。游戏 **API** 后端的完整 base URL（含路径）。仅来自运维配置——`game_server_host` 只能装纯 host、会把路径丢掉，故补此字段。native 层优先用本值，缺省回退 host 拼接 |
 | `services.resource_base` | **可选**。上游 Totentanz 的**资源**基址（来自端点发现）。与 `game_server_base` **严格区分**，见[上游端点发现](#上游-totentanz-端点发现) |
 | `services.game_max_threads` | **可选**。上游建议的 HTTP/2 并发数（实测会动态变化）；缺省或 ≤0 时客户端沿用自身默认 |
-| `offline_pack.min_version`（或顶层 `required_pack_version`） | 要求的最低离线包版本 |
+| ~~`offline_pack.min_version`~~ | **已删除**,随离线整包端点一并去掉 |
+| `asset_auth` | 取资产用的短时凭证信封,见[下节](#asset-auth-取资产的钥匙)。缺省 = **拿不到资产**,不是不需要鉴权 |
 | `contributors[]` | 贡献者名单（`name`/`contribution`/`url`/`avatar_url`/`color`） |
 | `directory.payload` / `directory.sig` | **可选**。[签名节点目录](#签名节点目录)；字段缺省 = 不下发，客户端按旧逻辑回退 `API_HOST` |
 
@@ -228,6 +252,11 @@ bool 字段不受此约束（`false` 是合法业务值）。
 
 ### 客户端：handleCloudInit() 处理顺序
 
+::: tip 这一段描述的是**已归档的 APK 客户端**
+保留作实现参考——处理顺序本身(先判封禁、再判强更、最后才碰业务字段)是合理的,
+新客户端可以照这个骨架来。但末尾那两步涉及已删除的字段。
+:::
+
 最多重试 3 次，指数退避 `1000 << (attempt-1)`；3 次全失败 → `OfflineModeManager.activate()`
 返回 false。成功后把 `access_token` 存 `cnv_account/session_token`，然后依次处理：
 
@@ -235,8 +264,11 @@ bool 字段不受此约束（`false` 是合法业务值）。
 封禁 → force_update（弹应用内更新）→ maintenance/error
 → allowed_versions 版本闸门 → latestVersion 软更新提示 → Spoof.set
 → ProxyBackends.set/setGameServerHost → NodeDirectory.ingest（验签+激活目录）
-→ 填充贡献者 → 写功能开关字段 → 两功能均关时按维护处理
+→ 填充贡献者 → 写功能开关字段
 ```
+
+最后一步在 APK 时代还有一条「`online_download` 与 `offline_package` 两功能均关时
+按维护处理」——那两个开关已随整包分发面删除。现在功能开关只剩 `account_enabled`。
 
 握手开始前会先 `NodeDirectory.load()` 从持久化恢复目录与防回滚地板（重新验签）；
 首个 `/client/init` 走 `API_HOST` 锚点、**不**参与路由。
@@ -342,10 +374,10 @@ Go 的 `crypto/ed25519` 本就只产出规范 `S`，服务端当前实现无需�
 | 请求 | 路由到含此 cap、`weight` 最大的节点（无则回退 `API_HOST`） |
 |---|---|
 | `/client/init` 握手 | （锚点，固定 `API_HOST`，不路由） |
-| `/client/method-select`·`online-download`·`offline-package`·`hot-update`·`heartbeat` | `init`（业务节点） |
+| `/client/heartbeat` | `init`（业务节点） |
 | `/account/login` | `login` |
 | `/account/save/get`·`/account/save/put` | `save` |
-| 资源**文件**下载（镜像） | `resource`（边缘节点的 `api` 作镜像） |
+| 资产清单与文件下载 | `resource`（边缘节点，见[边缘 resource 节点分发面](#边缘-resource-节点分发面)） |
 
 **能力分配是安全关键**：业务节点 `caps` 为 `["init","login","account","save"]`，
 边缘节点**仅** `["resource"]`。凭证类请求（login/account/save）绝不能指向只有
@@ -404,11 +436,180 @@ API 字段，会让代理全挂时的 API 请求打到一台只服务静态文�
 
 上游那套 API 本身的形状（205 个端点）见[上游游戏后端 API 清单](/protocol/upstream-api)。
 
-## 其余端点
+## `asset_auth`:取资产的钥匙
 
-### `/client/online-download`
+`/client/init` 在握手响应里下发一枚**短时资产凭证**,客户端拿它当 Bearer 令牌
+直接向边缘节点索取文件。
 
-body = 鉴权三件套。响应：
+```json
+"asset_auth": { "type": "bearer", "token": "cnva1.<设备>.<时间桶>.<MAC>", "expires_at": 1785090420 }
+```
+
+`type` 是**判别字段**,其余字段的形状由它决定;当前唯一取值 `bearer`。
+`expires_at` 是 **Unix 秒**。
+
+::: tip 它和 `access_token` 是两把不同的钥匙
+`access_token` 证明"这个设备是谁",生命周期以天计;`asset_auth.token` 只证明
+"可以读资产",生命周期以分钟计。
+
+**刻意不让边缘节点拿到 `access_token`**:边缘节点是信任树里最外一层(小时级证书,
+可能是第三方镜像),把身份凭证交给它,等于每取一个文件就把身份泄露一次。拆成两把
+之后,边缘节点最多知道"某个设备正在取文件"。
+:::
+
+### 令牌对客户端不透明
+
+客户端**只负责原样放进 `Authorization: Bearer`**——不解析、不缓存派生值、不自己
+重算。下面的内部结构写在这里是给服务端两侧看的(签发在 API/业务节点、校验在边缘
+节点,两边必须字节级一致),不是给客户端解析用的。
+
+```
+cnva1.<base64url(device_id)>.<时间桶>.<base64url(HMAC-SHA256)>
+```
+
+- MAC 覆盖前三段拼成的字符串(**含 `cnva1.` 前缀**),与 `access_token` 同一条纪律:
+  版本前缀签进去,将来出 `cnva2` 时不能把新载荷搬到旧前缀下复用签名;
+- 令牌**自描述**:校验方从令牌本身取回 `device_id`,不必让客户端额外送一个头,
+  也不必让边缘节点连数据库;
+- 时间桶 = `unix秒 / 窗口`,窗口由 `CNV_RESOURCE_TOKEN_WINDOW_SEC` 决定(默认 300);
+- 校验方接受**当前桶与上一个桶**两格——只认当前桶的话,签发方与校验方之间哪怕
+  几秒的时钟差,都会让恰好在桶边界签出的令牌当场失效,而这类失败在日志里看起来
+  就是随机的、无法复现的 401。
+
+::: danger 签发方与校验方的窗口值必须一致
+桶号是 `unix秒/窗口` 算出来的。两边窗口不一致就会算出不同的桶,结果是**每个资产
+请求都 401**——而错误信息只会说"令牌签名校验失败",完全指不到这里。业务节点与它
+下面所有边缘节点要一起改。
+
+实现在 `internal/resourceauth`,该包在 API 服务端与资源分发服务端各有一份**完全
+相同的拷贝**(两个仓库不共享 Go module)。两边的测试里各钉了一枚跨仓库测试向量,
+谁单方面改了算法,测试当场红。
+:::
+
+### 缺省 = 拿不到资产,不是不需要鉴权
+
+**`asset_auth` 整个缺省时,客户端必须视为"当前无法取用资产"并明确失败**,
+不得改为不带鉴权直接请求边缘节点。
+
+服务端侧据此 fail-closed:签名密钥未配置或过短(< 16 字节)时**不下发
+`asset_auth`**,而不是用弱密钥算一个令牌。空密钥的 HMAC 照样能算出"看起来正常"的
+令牌,而那个令牌任何人都能自己算出来。
+
+> 安全机制的默认值必须落在"失效时拒绝服务"那一侧。把缺省定义成"边缘节点当前不
+> 要求鉴权",意味着**任何让服务端签不出凭据的故障**都会在客户端表现为"那就不用
+> 鉴权了"——而且没有任何症状:客户端照常拿到资产、日志里一切正常,只有鉴权悄悄
+> 没了。
+
+## 边缘 resource 节点分发面
+
+客户端拿 `asset_auth.token` 直接向边缘节点要文件。这条路径三件事:
+
+```
+Authorization: Bearer <asset_auth.token>   每个请求都要,只认这个头
+GET  <base>/                               S3 风格 ListBucketResult XML 清单
+GET  <base>/<key>                          按 key 取文件,支持 HTTP Range
+```
+
+服务端实现在 `internal/api/resource`(校验用 `internal/resourceauth`)。
+`<base>` 默认 `/res`,由 `CNV_PRIMARY_RES_PATH` 决定。
+
+::: warning 令牌只认 `Authorization` 头,不认查询串
+进了 URL 就会进访问日志、Referer、浏览器历史,而这类泄漏事后无从追溯。
+:::
+
+### 清单
+
+对 `<base>/` 或任意目录 GET,返回 S3 `ListBucketResult` XML:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Name>assets</Name>
+  <Prefix>scenario/</Prefix>
+  <MaxKeys>1000</MaxKeys>
+  <IsTruncated>false</IsTruncated>
+  <Contents>
+    <Key>scenario/main_chapter_8.dat</Key>
+    <LastModified>2026-08-01T00:00:00.000Z</LastModified>
+    <Size>1048576</Size>
+    <StorageClass>STANDARD</StorageClass>
+  </Contents>
+</ListBucketResult>
+```
+
+支持的查询参数(与 S3 同义):
+
+| 参数 | 说明 |
+|---|---|
+| `prefix` | 只列以此开头的 key |
+| `marker` | 续页锚点,取上一页的 `NextMarker`;**严格大于**才收,不会重复 |
+| `max-keys` | 单页上限,默认 1000,**硬上限 5000** |
+
+::: tip 刻意不发 `ETag`
+S3 的 `ETag` 是文件 MD5。为了一次清单去读完整棵资产树算摘要,代价与收益完全不成
+比例;但也不能编一个——客户端会拿它做完整性判断。宁可不给。需要校验时用单文件的
+sha256 契约,不走这里。
+:::
+
+::: warning 截断如实上报
+key 数超过 `max-keys` 时 `IsTruncated=true` 并给出 `NextMarker`。谎报 `false` 会让
+客户端以为资产就这么多,少下的那些要到运行时才暴露。
+:::
+
+### 取文件
+
+按 key 取,支持 HTTP Range(客户端用单线程续传 + 多线程分片),由
+`http.ServeContent` 处理,因此 `If-Modified-Since`、206 应答、后缀范围
+(`bytes=-N`)、越界钳制都是标准行为。
+
+::: tip 目录穿越用 `os.Root` 挡,不是自己查 `..`
+手写检查挡得住 `../`,挡不住指向资源根目录外的**符号链接**,而后者恰恰是这类漏洞
+的常见形态。`os.Root` 在系统调用层面拒绝逃逸,不依赖我们把每种写法都想全。两种
+情形都有回归测试。
+:::
+
+### 限流
+
+按**已验签令牌里的设备**计,默认每分钟 600 次。中间件顺序是**先验令牌再限流**——
+反过来的话未鉴权请求也占配额,任何人都能凭空把某个设备的额度耗光。
+
+按设备而非按 IP:同一出口 IP 后面可能是整个校园网,按 IP 会让他们互相拖累;而设备
+是令牌签过的,伪造不了。
+
+## 现役端点:`/client/heartbeat`
+
+每 5 秒上报一次。body = 鉴权三件套。
+
+响应 `action`:
+
+| action | 时机 | 含义 |
+|---|---|---|
+| `ok` | 常态 | 继续 |
+| `maintenance` | 服务器维护 | 顶层带 `message` / `end_time` |
+| `ban` | 运行中被封 | 顶层 `reason` / `expire_time`,客户端会**本地持久化**封禁 |
+
+心跳只回答一件事:**这个设备还活着**。它是保活、封禁下发与维护通知的通道,
+管理后台的「在线设备」页也读它。
+
+::: warning `files[]` 与 `switch_mirrors` 已删除
+请求体的 `files[]`(逐文件下载进度)与响应的 `switch_mirrors`(管理员入队的换线
+指令)随 APK 整包分发面一并去掉,由 `files[]` 聚合出的 `progress` / `speed_bps` /
+`current_file` 也不再存在。
+
+网页端按需逐个取资产,不存在"整体下载进度"这个概念,也就没有可换的线。
+管理后台 `/admin/heartbeats` 现在只下发 `device_id` 与 `last_heartbeat`。
+:::
+
+## 协议记录:已删除的 APK 整包分发面
+
+::: danger 以下四节是历史记录,不是现役契约
+这些端点**已从服务端删除**。保留描述是为了说明 Android 专有 API 曾经长什么样,
+便于理解旧客户端代码与旧数据库表。**不要照着它们实现任何新东西。**
+:::
+
+### ~~`/client/online-download`~~(已删除)
+
+body = 鉴权三件套。响应:
 
 ```json
 {
@@ -416,31 +617,22 @@ body = 鉴权三件套。响应：
   "resource_token": "HMAC 短时签名",
   "groups": [
     { "name": "线路A", "mirrors": [ {"url": "...", "files": [{"key":"...","size":1024}]} ] },
-    { "name": "主节点本地", "mirrors": ["https://.../res"] },
-    { "name": "副节点", "mirrors": [ {"url":"https://node-hk/", "files":[...]} ] }
+    { "name": "主节点本地", "mirrors": ["https://.../res"] }
   ]
 }
 ```
 
-- `resource_token`——S3/CDN 资源令牌，**与会话令牌独立**；
-- 新格式 `groups[]`：每组 `name` + `mirrors[]`，mirror 可为字符串或 `{url, files[]}`，
-  file 可为字符串或 `{key, size}`；
-- 旧格式平铺 `mirrors[]` 字符串数组，客户端包装为单组「默认线路」；
-- mirror 无内联 `files` 时，客户端 GET 该根 URL 期望得到标准 S3 `ListBucketResult` XML。
+- `resource_token`——S3/CDN 资源令牌,与会话令牌独立(现由 `asset_auth` 承担);
+- `groups[]`:每组 `name` + `mirrors[]`,mirror 可为字符串或 `{url, files[]}`,
+  file 可为字符串或 `{key, size}`;
+- 旧格式平铺 `mirrors[]` 字符串数组,客户端包装为单组「默认线路」;
+- mirror 无内联 `files` 时,客户端 GET 该根 URL 期望得到标准 S3 `ListBucketResult` XML。
 
-服务端三个来源按优先级拼接：管理后台镜像组 → 主节点本地 → 活跃副节点。
+服务端三个来源按优先级拼接:管理后台镜像组 → 主节点本地 → 活跃副节点。镜像组、
+日流量限额与速度上限存在 `mirrors` / `mirror_groups` / `mirror_traffic` 三张表——
+这些表已由 `0005` 迁移删除。
 
-> **镜像限额过滤**：若某镜像当天流量超过管理员设定的日限额、或当前速度超过速度上限，
-> 该镜像本次响应中**不出现**（客户端不感知，直接拿到过滤后的列表）。次日零点自动重置日流量。
-> 对 CDN/S3 等不可控节点，仅控制调度（不派发），不限制已在下载的连接。
-
-::: tip 就近下载改由签名目录下发
-旧的「副节点心跳动态发现」组已下线，响应不再出现该动态组（结构与字段不变）。客户端改为把
-[签名节点目录](#签名节点目录)里 `caps` 含 `resource` 的节点 `api` 合并为一条「就近节点（目录）」
-下载线路（按 `weight` 降序），与管理后台镜像组并存供用户选择。
-:::
-
-### `/client/offline-package`
+### ~~`/client/offline-package`~~(已删除)
 
 body = 鉴权三件套。
 
@@ -448,11 +640,10 @@ body = 鉴权三件套。
 { "success": true, "download_url": "...", "package_version": "20250501", "sha256": "...", "size": 4096 }
 ```
 
-::: warning 字段名是 `sha256` 不是 `md5`
-部分历史注释里把校验字段写成 `md5`，但客户端解析代码读的是 `sha256`。以代码为准。
-:::
+字段名是 `sha256` 不是 `md5`(部分历史注释写错了,以当时的客户端解析代码为准)。
+配套的打包器 `internal/packer` 与 `offline_package` 表已一并删除。
 
-### `/client/hot-update`
+### ~~`/client/hot-update`~~(已删除)
 
 body = 鉴权三件套。
 
@@ -464,57 +655,39 @@ body = 鉴权三件套。
 }
 ```
 
-`version` 为 int，`size` 客户端默认 -1。JS 与剧情两类热更新包，客户端比对本地版本决定是否拉取。
+`version` 为 int,`size` 客户端默认 -1。配套的 `hot_bundles` 表与管理后台热更新页
+已一并删除。
 
-### `/client/method-select`
+### ~~`/client/method-select`~~(已删除)
 
-body = 鉴权三件套 + `method`（`online` / `offline`）。客户端忽略响应，仅用于上报玩家选择的
-下载方式。
+body = 鉴权三件套 + `method`(`online` / `offline`)。客户端忽略响应,仅用于上报玩家
+选择的下载方式。网页端没有"选下载方式"这一步,该端点自然消失。
 
-### `/client/heartbeat`
+## 客户端侧的 S3 清单解析
 
-每 5 秒上报一次。body = 鉴权三件套 + `files` 数组（下载阶段）或空数组（游戏阶段）。
-`files[]` 每项 `{ name, status: pending|downloading|done|failed, percent, speed_bps }`。
+APK 客户端 `S3List` 用纯正则解析 `ListBucketResult` XML(不依赖 SAX/DOM):`CONTENTS`
+正则抓每个 `<Contents>` 块,块内 `KEY` / `SIZE` 正则取 `<Key>` / `<Size>`。`parse()`
+返回 `List<Entry>`(key + size,size 解析失败为 -1),输入空 / 无块返回空 list,
+不抛异常。
 
-心跳只在**客户端自己下载**时携带逐文件进度，共三种来源：
-
-| 来源 | `files` | 说明 |
-|---|---|---|
-| 在线资源下载 | 游戏资源多文件 | 客户端多线程下载，逐文件真实 `speed_bps` |
-| 热更新 | 固定 `cn_js_update.zip` / `cn_scenario_update.zip` | 同上 |
-| 游戏内 | 空 `[]` | 仅为收取封禁/维护指令，无下载进度与速度 |
-
-> **离线整包不在心跳内**：离线包由系统浏览器下载、客户端只做文件导入，全程不发心跳，
-> 因此不会出现在管理后台「心跳监控」，协议上也**不存在**「离线包下载速度」。
-
-响应 `action`：
-
-| action | 时机 | 含义 |
-|---|---|---|
-| `ok` | 常态 | 继续 |
-| `maintenance` | 游戏阶段 + 服务器维护 | 顶层带 `message` / `end_time` |
-| `switch_mirrors` | 下载阶段 + 管理员入队换线 | `assignments:[{mirror, files:[name]}]` |
-| `ban` | 运行中被封 | 顶层 `reason` / `expire_time`，客户端会**本地持久化**封禁 |
-
-管理后台 `/admin/heartbeats` 下发内存心跳表快照：`type` = `online`/`hotupdate`/`game`
-（由 `phase` + 文件名推导），`progress`/`speed_bps`/`current_file` 由 `files[]` 聚合得到。
-
-客户端侧的处理见[账号、存档与心跳](/client/account-save#心跳与实时封禁维护处理)。
-
-## S3 列表解析
-
-客户端 `S3List` 用纯正则解析 S3 `ListBucketResult` XML（不依赖 SAX/DOM）：`CONTENTS`
-正则抓每个 `<Contents>` 块，块内 `KEY` / `SIZE` 正则取 `<Key>` / `<Size>`。`parse()` 返回
-`List<Entry>`（key + size，size 解析失败为 -1），输入空 / 无块返回空 list，不抛异常。
-在 `fetchManifestForGroup` 中用于镜像根 URL 的文件发现。
-
-因此边缘 resource 节点必须提供 **S3 风格的 `ListBucketResult` XML 列表端点**，并支持
-`Authorization: Bearer <resource_token>` 与 HTTP Range（客户端用单线程续传 + 多线程分片）。
+这段实现是 APK 时代的产物,但**服务端这一侧的契约没变**:边缘节点仍然提供标准
+`ListBucketResult` XML(见[边缘 resource 节点分发面](#边缘-resource-节点分发面))。
+写新客户端时按那一节的形状实现即可,不必照抄这里的正则做法。
 
 ## 字段真理的来源
 
+现役契约的真理在**服务端实现与它的保真测试**里(APK 已归档,不再是仲裁者):
+
+| 现役端点 | 服务端实现 | 保真测试 |
+|---|---|---|
+| `/client/init` | `internal/api/client/handlers.go` + `state.go` | `protocol_test.go` |
+| `/client/heartbeat` | 同上 | 同上 |
+| 边缘分发面 | `internal/api/resource` + `internal/resourceauth` | 各自的 `_test.go` |
+
+历史对照(APK 客户端 Java 文件 ↔ 已删除的端点):
+
 | 客户端 Java 文件 | 对应服务端端点 |
 |---|---|
-| `ClientInit.java` | `/init`、`/online-download`、`/offline-package`、`/hot-update`、`authTriple()` |
-| `ResourceFlow.java` | `/heartbeat`（ban / switch_mirrors） |
-| `SaveSyncHelper.java` | `/account/save/{put,get}` |
+| `ClientInit.java` | `/init`、~~`/online-download`~~、~~`/offline-package`~~、~~`/hot-update`~~、`authTriple()` |
+| `ResourceFlow.java` | `/heartbeat`(ban / ~~switch_mirrors~~) |
+| `SaveSyncHelper.java` | `/account/save/{put,get}`(已移交 API 服务端) |

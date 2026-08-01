@@ -72,7 +72,7 @@ CI 会跑同样的检查 + 交叉编译。三条全绿再提 PR。
 | 存储层 | [多方言抽象](/contributing/server/store-dialects) | 一处改动要同时对三种数据库成立 |
 | 客户端协议 | [协议保真原则](/contributing/server/protocol-fidelity) | 一个字段错位真机就崩 |
 | 调度器 | [调度器与后台任务](/contributing/server/scheduler) | goroutine 生命周期与优雅退出 |
-| 打包器 | [离线整包打包器](/contributing/server/packer) | 原子写、流式哈希、retention |
+| 资产分发 | [资产分发面](/contributing/server/resource-plane) | Bearer 鉴权、S3 清单、Range、目录穿越防护 |
 | 发布 | [发布流程与 CI](/contributing/server/release-ci) | 版本号自动推进规则 |
 
 准备好了就从 [开发环境搭建](/contributing/server/dev-setup) 开始。

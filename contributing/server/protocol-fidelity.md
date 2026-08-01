@@ -8,19 +8,34 @@
 
 ```mermaid
 flowchart LR
-    J["客户端 Java<br/>ClientInit.java / ResourceFlow.java"] -->|"定义期望形状"| T["protocol_test.go<br/>把形状编码成断言"]
+    J["现役客户端<br/>(网页端;APK 已归档)"] -->|"定义期望形状"| T["protocol_test.go<br/>把形状编码成断言"]
     T -->|"守护"| H["服务端 handler"]
     H -->|"改动破坏形状"| RED["测试变红"]
     RED -->|"必须修"| H
 ```
 
-对照表(`internal/api/client/handlers.go` 顶部注释也列了):
+::: warning 仲裁者已经不是 APK 了
+原文说"真理是客户端 Java 源码"——前提是 APK 已签名已分发、字段钉死在包里。
+本代 APK 从未上线、装机量为零、仓库已归档,这个前提不成立。
+
+现役契约的仲裁者是**服务端实现 + 它的保真测试**,以及与网页客户端的约定。
+下面的 Java 对照表保留作历史线索,不再是"不可改"的依据。
+:::
+
+现役端点(`internal/api/client/handlers.go` 顶部注释也列了):
+
+| 端点 | 实现 |
+|---|---|
+| `/client/init`、`/client/heartbeat` | `internal/api/client/handlers.go` + `state.go`,测试 `protocol_test.go` |
+| 边缘分发面 | `internal/api/resource` + `internal/resourceauth`,各自的 `_test.go` |
+
+历史对照表:
 
 | 客户端 Java | 服务端端点 |
 |---|---|
-| `ClientInit.java` | `/init`、`/online-download`、`/offline-package`、`/hot-update`、`authTriple()` |
-| `ResourceFlow.java` | `/heartbeat`(ban / switch_mirrors) |
-| `SaveSyncHelper.java` | `/account/save/{put,get}` |
+| `ClientInit.java` | `/init`、~~`/online-download`~~、~~`/offline-package`~~、~~`/hot-update`~~、`authTriple()` |
+| `ResourceFlow.java` | `/heartbeat`(ban / ~~switch_mirrors~~) |
+| `SaveSyncHelper.java` | `/account/save/{put,get}`(已移交 API 服务端) |
 
 ## 铁律一:可选字符串为空时省略 key,绝不发 null
 

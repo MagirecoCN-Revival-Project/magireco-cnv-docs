@@ -24,15 +24,26 @@ flowchart LR
 
 ## 哪些算"客户端可见契约"
 
-凡是客户端正在解析并依赖的形状，都不可破坏。重点端点：
+凡是**有活跃用户的客户端**正在解析并依赖的形状，都不可破坏。
+
+::: warning 判据是"有没有人在用",不是"这个客户端存不存在"
+APK 客户端装机量为零、仓库已归档,对它**没有兼容义务**——2026-08 那四个整包分发
+端点就是据此直接删掉的。真正受保护的是网页客户端与将来任何有真实在线用户的客户端。
+
+要破坏某个契约之前,先确认没有活跃用户;拿不准就问人,别自己假设。
+:::
+
+现役端点：
 
 | 端点 | 关键字段（节选） |
 |---|---|
-| `/client/init` | `banned`/`ban_reason`、`force_update`、`access_token`、`server{...}`、`client{...}`、`features{...}`、`services{...}`、`contributors[]`、`directory{payload,sig}` |
-| `/client/online-download` | `resource_token`、`groups[]{name,mirrors[]}`、兼容顶层平铺 `mirrors[]` |
-| `/client/offline-package` | `download_url`、`package_version`、`sha256`（**不是** md5） |
-| `/client/hot-update` | `js{version,sha256,download_url,size}`、`scenario{...}` |
-| `/client/heartbeat` | 响应 `action`：`ok`/`switch_mirrors`/`ban`/`maintenance` |
+| `/client/init` | `banned`/`ban_reason`、`force_update`、`access_token`、`server{...}`、`client{...}`、`features{account_enabled,...}`、`services{...}`、`asset_auth{type,token,expires_at}`、`contributors[]`、`directory{payload,sig}` |
+| `/client/heartbeat` | 响应 `action`：`ok`/`ban`/`maintenance` |
+| 边缘分发面 | `Authorization: Bearer` + S3 `ListBucketResult` 清单 + Range,见[资产分发面](/contributing/server/resource-plane) |
+
+已删除(仅作历史记录,不要再拿它们当约束)：`/client/method-select`、
+`/client/online-download`、`/client/offline-package`、`/client/hot-update`,
+以及心跳里的 `files[]` 与 `switch_mirrors`。
 
 字段从哪来、长什么样的"真理"在 `internal/api/client/handlers.go` + `state.go`，并由 `protocol_test.go` 守护。改之前先读 [协议保真原则](/contributing/server/protocol-fidelity)。
 
@@ -78,7 +89,7 @@ flowchart LR
 ## 安全
 
 - Ed25519 目录私钥、签名 keystore、资源令牌签发密钥**一律离线 / Secret**，不入库、不进日志。
-- `access_token` / `resource_token` 要有有效期与撤销路径；跨节点校验一致。
+- `access_token` / `asset_auth.token` 要有有效期与撤销路径；跨节点校验一致（尤其资产令牌的密钥与时间窗，业务节点与所有边缘节点必须同值）。
 - 资源/控制端点做**限流与防刷**（客户端会重试 + 心跳）。
 - **不在响应 / 日志里回显敏感凭证。**
 

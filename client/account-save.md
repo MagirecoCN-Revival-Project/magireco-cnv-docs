@@ -2,6 +2,12 @@
 
 本页讲存档同步、悬浮存档按钮、5 秒心跳与登录验证码。
 
+::: warning 本页描述的是已归档的 APK 客户端
+仓库已归档,本代从未上线。服务端侧也变了两处:玩家账号与云存档**已移交 API 服务端**;
+心跳的 `files[]` 与 `switch_mirrors` **已删除**——现在心跳只保活并接收封禁/维护通知。
+现役协议见[客户端 ↔ 服务端握手协议](/protocol/client-server)。
+:::
+
 ## 本地存档存储
 
 存档的本质是 [玩家状态缓存](/client/webview#playerstatecache-sqlite-持久化)：`PlayerStateCache.loadAll(accountId)` 把该账号所有端点序列化为：
@@ -87,7 +93,8 @@
 |---|---|
 | `ban` | 用 `fatalShown` 去重；停心跳；读 `reason`/`expire_time`；`BanInfo.save(...)`；主线程弹模态覆盖层"账号已被封禁"（`expire_time>0` 格式化"解封时间"，否则"永久"） |
 | `maintenance` | 同样去重停心跳；读 `message`/`end_time`；弹"服务器维护中" |
-| `ok` / `switch_mirrors` | 游戏阶段无关，忽略 |
+| `ok` | 常态,继续 |
+| ~~`switch_mirrors`~~ | **服务端已删除**;当年客户端在游戏阶段也是忽略它 |
 
 **致命覆盖层** `showFatalOverlay()`：`WindowManager` 加全屏暗化层（`FLAG_DIM_BEHIND`）捕获所有触摸，中央卡片唯一"确定"按钮回调里 `removeView` 后 `Process.killProcess(myPid())` 直接终止进程。
 

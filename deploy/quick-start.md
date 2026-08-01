@@ -34,8 +34,12 @@ export CNV_DB_URL='sqlite:///srv/magireco/magireco.db'
 export CNV_ADMIN_JWT_SECRET="$(openssl rand -hex 32)"
 ```
 
-::: tip resource_token 密钥不用管
-resource_token 的 HMAC 签名根密钥（`CNV_RESOURCE_TOKEN_SECRET`）**不必手动提供** —— 首次启动会自动生成 32 字节并持久化到 `config` 表，重启复用。
+::: tip 单机部署时资产令牌密钥不用管
+资产令牌(`asset_auth`)的 HMAC 签名根密钥 `CNV_RESOURCE_TOKEN_SECRET` 在**业务节点**上
+不必手动提供 —— 首次启动会自动生成 32 字节并持久化到 `config` 表,重启复用。
+
+**加边缘节点时就必须手动配了**:边缘节点没有数据库,生成不了也读不到那把密钥,只能从
+环境变量拿,且必须与业务节点**完全一致**。配漏了的表现是每个资产请求都 401。
 :::
 
 ## 4. 启动业务节点

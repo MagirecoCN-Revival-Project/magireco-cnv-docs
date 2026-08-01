@@ -31,7 +31,7 @@
 |---|---|---|
 | `CNV_DB_URL` ⭐ | — | 数据库连接串，按前缀识别驱动。见 [选择数据库](/deploy/database) |
 | `CNV_ADMIN_JWT_SECRET` ⭐🔒 | — | 管理后台 cookie 完整性密钥，**≥16 字符** |
-| `CNV_RESOURCE_TOKEN_SECRET` | — | 可选；resource_token 的 HMAC 签名根密钥。**不设则首次启动自动生成并持久化**（写入 `config` 表 `resource_token_secret`，重启复用） |
+| `CNV_RESOURCE_TOKEN_SECRET` | — | 资产令牌（`asset_auth`）的 HMAC 签名根密钥，≥ 16 字节。**业务节点**不设则首次启动自动生成并持久化（写入 `config` 表 `resource_token_secret`，重启复用）；**边缘节点没有数据库，必须显式配置**，且与业务节点一致 |
 | `CNV_PANEL_PUBLIC_URL` | — | 面板对外 URL（如 `https://panel.example.com`）。设置后：客户端入口页 `/account/register`、`/account/forgot`、`/account/verify-email` **302 跳转到面板**；并作为 **CORS 放行来源**，允许面板托管的前端跨域直连本节点 API。**留空**=单机回落：节点本地托管入口页（零跨域）。见 [节点与面板](/deploy/nodes#面板托管前端与跨域直连) |
 | `CNV_WEB_DIR` | `./web` | 前端静态目录。**面板**用它托管全部人类前端（登录/注册/管理后台/用户中心）；**业务节点**仅在未接入面板（`CNV_PANEL_PUBLIC_URL` 留空）时回落用它服务客户端入口页 |
 | `CNV_DIRECTORY_FILE` | — | 已签名节点目录 JSON 文件路径；设置后随 `/client/init` 下发给客户端。**节点启动时会自检**：文件读不到、不是合法 `{payload,sig}`、或能力分配违规（如边缘节点持有 `save`）一律**拒绝启动**（退出码 2）；已过期只告警仍启动。详见 [多节点架构 · 节点启动自检](/server/multi-node#节点启动自检-cnv-directory-file) |
@@ -86,19 +86,40 @@
 角色不是配出来的，是**写在证书里**的：进程启动时会拿证书里的 `role` 跟自己该是的角色对一遍，对不上直接拒绝启动。这条自检是三项里唯一可能长期无症状的一项——角色配反不会报错，只会安静地让一台本该只发资源的机器收下凭证类请求。
 :::
 
-### 资源与离线包
+### 资产分发
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `CNV_PRIMARY_RES_DIR` | — | 本地资源目录（业务/边缘节点均可设） |
+| `CNV_PRIMARY_RES_DIR` | — | 本地资源目录（业务/边缘节点均可设）。空 = 本节点不提供资产分发 |
 | `CNV_SECONDARY_RES_DIR` | `$CNV_PRIMARY_RES_DIR` | 边缘节点资源目录（优先级高于 `CNV_PRIMARY_RES_DIR`） |
-| `CNV_PRIMARY_RES_PATH` | `/res` | 资源对外 URL 前缀 |
-| `CNV_OFFLINE_DIR` | `./data/offline` | 离线整包产物目录 |
-| `CNV_OFFLINE_URL_PATH` | `/dl/offline-pack` | 离线整包对外 URL 前缀 |
-| `CNV_HOTUPDATE_DIR` | `./data/hotupdate` | 热更新包（JS/剧情）托管目录；服务端下载或接收上传后存此目录并对外提供下载 |
-| `CNV_HOTUPDATE_URL_PATH` | `/dl/hot-update` | 热更新包对外 URL 前缀 |
-| `CNV_HOTUPDATE_MAX_MB` | `1024` | 热更新包上传/下载大小上限初值（MiB）；管理后台「服务器控制 → 上限」可运行时调整，无需重启 |
-| `CNV_BODY_LIMIT_MB` | `8` | 全局请求体大小上限初值（MiB）；同上可后台运行时调整 |
+| `CNV_PRIMARY_RES_PATH` | `/res` | 资产对外 URL 前缀（清单与文件都挂在它下面） |
+| `CNV_RESOURCE_TOKEN_WINDOW_SEC` | `300` | 资产令牌的时间桶长度（秒）。**签发方与校验方必须配成同一个值**，见下方警告 |
+| `CNV_BODY_LIMIT_MB` | `8` | 全局请求体大小上限初值（MiB）；管理后台「服务器控制 → 上限」可运行时调整，无需重启 |
+
+::: danger 边缘节点必须配 `CNV_RESOURCE_TOKEN_SECRET`
+边缘节点没有数据库,密钥**只能来自环境变量**——它不像业务节点那样能在 `config` 表里
+自动生成一把。配漏了的表现是每个资产请求都 401(fail-closed),但那要等客户端来了
+才暴露,所以节点启动时会先明确报一次错。
+
+密钥要求 ≥ 16 字节,且业务节点与它下面所有边缘节点**必须一致**。
+:::
+
+::: danger `CNV_RESOURCE_TOKEN_WINDOW_SEC` 两边必须一致
+时间桶 = `unix秒 / 窗口`。两边窗口不一致就会算出不同的桶,结果是**每个资产请求都
+401**——而错误信息只会说"令牌签名校验失败",完全指不到这里。
+
+签发方包括 API 服务端(它下发 `asset_auth`)与业务节点;校验方是所有边缘节点。
+改的时候一起改。
+:::
+
+::: warning 离线整包与热更新的配置项已删除(2026-08)
+`CNV_OFFLINE_DIR`、`CNV_OFFLINE_URL_PATH`、`CNV_HOTUPDATE_DIR`、
+`CNV_HOTUPDATE_URL_PATH`、`CNV_HOTUPDATE_MAX_MB` 五项随 APK 整包分发面一并删除,
+设了也不再有任何效果(节点不会报错,只是忽略)。升级后可以从部署脚本里清掉。
+
+对应的端点、打包器与数据表见
+[协议记录:已删除的 APK 整包分发面](/protocol/client-server#协议记录-已删除的-apk-整包分发面)。
+:::
 
 ### SMTP 邮件
 

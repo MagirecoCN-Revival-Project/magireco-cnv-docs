@@ -19,7 +19,6 @@
 erDiagram
     admins ||--o{ admin_sessions : "拥有"
     devices ||--o{ bans : "可被封禁"
-    mirror_groups ||--o{ mirrors : "包含"
 
     admins {
         text id PK
@@ -86,15 +85,21 @@ erDiagram
 | `cap_challenges` | `token` | `c`/`d`/`s`、`expires_at`、`solved` | PoW 挑战 |
 | `cap_tokens` | `token` | `expires_at`、`used` | 验证码兑换后的一次性令牌 |
 
-### 配置与资源
+### 配置
 
 | 表 | 主键 | 说明 |
 |---|---|---|
 | `config` | `key` | KV 配置表(JSON 值),见下文 |
-| `mirror_groups` | `id`(自增) | 镜像线路组,`name` + `sort_order` |
-| `mirrors` | `id`(自增) | 镜像,`group_id`、`kind`(http/s3)、`url`、可选 `bucket`/`region`/内联 `files` |
-| `hot_bundles` | `kind`(js/scenario) | 热更新包,`version`、`sha256`、`download_url`、`size` |
-| `offline_package` | `id`(恒为 1) | 离线整包单例,`download_url`、`package_version`、`sha256`、`size` |
+
+::: warning 五张资源表已删除(2026-08,迁移 `0005`)
+`mirror_groups`、`mirrors`、`hot_bundles`、`offline_package`、`mirror_traffic`
+随 APK 整包分发面一并删除。资产分发改由[资产分发面](/contributing/server/resource-plane)
+承担,它直接读文件系统,不需要在数据库里维护一份镜像清单。
+
+**这一步不可逆**:表里存的是管理员配置的镜像地址与日限额,`DROP` 之后就没了。
+已经没有任何代码读它们,但想留底的话要在升级前自行导出。迁移用
+`DROP TABLE IF EXISTS`,重复执行安全。
+:::
 
 ### 运维
 
@@ -116,7 +121,7 @@ erDiagram
 | `captcha` | PoW 开关与难度 | 验证码服务 |
 | `tasks` | 各定时任务周期 | 调度器 |
 | `auto_package` | 离线包自动打包策略 | 调度器 |
-| `resource_token_secret` | 自动生成的 HMAC 密钥(hex) | 资源 token 签名 |
+| `resource_token_secret` | 自动生成的 HMAC 密钥(hex) | 资产令牌(`asset_auth`)签名;边缘节点不读库,须用同值的 env 配 |
 
 `config` 用 `ConfigGet`/`ConfigSet`/`ConfigEnsure` 读写,值是任意 JSON,结构由各业务的 Go struct 定义。这让"新增一个配置项"只需加 struct 字段,不用改 schema。
 
@@ -129,7 +134,7 @@ erDiagram
 
 ## JSON 列的方言差异
 
-`config.value`、`audit_log.details`、`mirrors.files` 等是 JSON:
+`config.value`、`audit_log.details` 等是 JSON:
 
 | 数据库 | 列类型 |
 |---|---|

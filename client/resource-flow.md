@@ -1,5 +1,14 @@
 # 资源下载与离线包
 
+::: danger 本页描述的是已归档的 APK 客户端
+Android 客户端已被判定为**中间产物,停止维护**,仓库已归档;本代从未上线,装机量为零。
+服务端侧的整包分发面(在线下载的镜像组、离线整包、热更新)也已在 2026-08 删除,
+**本页描述的流程不再对应任何在线服务**。
+
+保留本页作历史记录。后续方向是网页版客户端 + 自建 API 后端,资产改由
+[边缘 resource 节点](/protocol/client-server#边缘-resource-节点分发面)按需分发。
+:::
+
 `ResourceFlow` 负责把游戏资源准备到 `<filesDir>`。构造签名 `ResourceFlow(ctx, reporter, mode, sessionToken)`（`ResourceFlow.java:165`），模式常量 `MODE_ONLINE="online"` / `MODE_OFFLINE="offline"`。`run()` 按 mode 分派。
 
 `BUILD_VERSION` 在静态块里通过反射读 APK `versionName`，用作版本闸门上报值。
