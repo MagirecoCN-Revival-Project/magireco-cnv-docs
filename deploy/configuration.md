@@ -146,3 +146,34 @@ export CNV_ADDR=:8090
 | `CNV_HEARTBEAT_SEC` | 不再需要；管控 WS 长连接替代心跳 |
 | `CNV_NODE_ROLE=primary` | 改为 `CNV_NODE_ROLE=business` |
 | `CNV_NODE_ROLE=secondary` | 改为 `CNV_NODE_ROLE=edge` |
+
+## API 服务端专有
+
+以下配置项只属于 [API 服务端](https://github.com/MagirecoCN-Revival-Project/magirecocn-api-server)，
+资源分发服务端没有它们。
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `CNV_DEV_MODE` 🔒 | `false` | `true` 时允许下发协议的**开发期临时值**。**生产必须为 false**，见下 |
+| `CNV_BOOTSTRAP_ENDPOINT` | — | Android 底包引导端点 `/magica/api/snaa` 下发的业务服务器地址。留空 = 不接管底包，该端点返回 503 |
+| `CNV_BOOTSTRAP_MAX_THREADS` | `4` | 下发给底包的并发下载线程数建议值 |
+| `CNV_BOOTSTRAP_VERSION` | `0` | 当前底包版本号（`r128` → `128`） |
+
+### `CNV_DEV_MODE`：生产守卫 🔒
+
+协议里有若干**开发期临时值**——待决项定稿前的占位形状，让客户端与服务端能先并行
+开工。协议文档的「生产守卫」要求：**生产环境不得下发任何临时值**。这个开关就是
+那道守卫在服务端侧的落点。
+
+当前受它管辖的是 **`/client/scene-manifest`**：清单的最小形状（只含 `path`）是
+R2 定稿前的临时值，因此 `CNV_DEV_MODE=false` 时该端点一律返回 `503`，
+**哪怕清单已经接进来了**。
+
+::: danger 默认 false 是有意的
+临时值的危险不在于它们存在，而在于**它们可能不被发现地留在生产里**。一个只含
+`path` 的清单在生产里跑得好好的，直到某天需要靠内容哈希做缓存失效，才发现它
+从来没有过。
+
+忘了配这个变量的后果是**功能不可用（显眼）**，而不是临时值悄悄泄进生产（不显眼）。
+:::
+
