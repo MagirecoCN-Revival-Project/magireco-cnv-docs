@@ -52,7 +52,7 @@ flowchart LR
 | 会话窃取 | 随机长 token + 安全 cookie 属性 | [会话与令牌](/security/sessions-tokens) |
 | 中间人推恶意更新包 | `update_apk_sha256` 安装前校验 | [版本闸门](/security/version-gates) |
 | 机器人批量注册 | PoW 人机验证 + 注册限流 | [PoW 验证](/security/captcha-pow) |
-| 副节点冒充 | 共享密钥等时比较 + 长度下限 | [会话与令牌](/security/sessions-tokens#副节点共享密钥) |
+| 副节点冒充 | 共享密钥等时比较 + 长度下限 | [请求生命周期](/server/request-lifecycle) |
 
 ## 纵深防御:一道闸门挡不住就下一道
 

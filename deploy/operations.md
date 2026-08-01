@@ -219,3 +219,121 @@ journalctl -u magireco-node-business --since "1 min ago"
 | 换下载线路 | 「资源管理」改镜像组;或「心跳监控」给个别卡住的设备手动换线 |
 | 重置玩家/管理员密码 | `admintool reset-account` / `reset-admin` |
 | 轮换资源签名密钥 | 「资源管理」页操作 |
+
+## 节点证书
+
+节点身份走[证书链](/security/node-pki)。**根私钥只在离线机器上**，下面的命令区分在哪台机器执行。
+
+### 首次建根（离线机器）
+
+```bash
+admintool ca init -subject=offline-root -out-dir=./ca
+```
+
+产出两个文件：
+
+- `ca/root.key` —— 私钥（`0600`）。**留在这台离线机器上，绝不上线、绝不入库。**
+- `ca/root.cert` —— 根证书，可公开。分发给所有节点作 `CNV_PKI_ANCHORS`。
+
+::: danger 不要重复执行 ca init
+覆盖已有的根会**作废该根签出的全部证书且不可逆**。命令默认拒绝覆盖，要重建须显式加 `-force`。轮换请另建目录并走[多锚重叠期](/security/node-pki#根轮换)，而不是原地覆盖。
+:::
+
+### 接入一台新节点
+
+**① 在新节点上**生成密钥对并输出 CSR。私钥就地生成、就地留下，交出去的只有公钥：
+
+```bash
+node emit-csr -out=./rs1.csr
+# 私钥落在 CNV_PKI_KEY（默认 ./data/pki.key）
+```
+
+**② 把 CSR 拷到离线机器**签发：
+
+```bash
+admintool ca sign \
+  -ca-cert=./ca/root.cert -ca-key=./ca/root.key \
+  -csr=./rs1.csr -role=resource -caps=init,resource -out=./rs1.cert
+```
+
+::: warning `-role` 与 `-caps` 必须显式指定，且**不从 CSR 采信**
+CSR 里那两个字段是申请者自己写的。一台被攻陷的节点只要在 CSR 里写 `role=root` 就能申请到根权限——所以签发时由你决定，CSR 里的值只并排打出来供比对。
+
+即便手滑真按 `-role=root` 签，签发侧仍会拒绝（能力超出签发者 / 角色不可签出），有两道独立防线。
+:::
+
+**③ 把签好的证书拷回节点**，配上路径后启动：
+
+```bash
+CNV_PKI_ANCHORS=/etc/cnv/root.cert
+CNV_PKI_CERT=/etc/cnv/node.cert
+CNV_PKI_KEY=/etc/cnv/pki.key
+# 边缘节点还要带上上级那张：
+CNV_PKI_CHAIN=/etc/cnv/rs1.cert
+```
+
+启动时会做三项自检，任何一项不过**拒绝启动**：
+
+| 检查 | 典型报错 |
+|---|---|
+| 链能锚定到钉住的根 | `链未锚定到任何受信任的根`（多半是漏配 `CNV_PKI_CHAIN`） |
+| 私钥与证书配对 | `私钥与证书里的公钥不匹配`（拿错文件） |
+| 角色与 `CNV_NODE_ROLE` 一致 | `证书角色是 "edge"，但本节点按 "resource" 运行` |
+
+::: tip 为什么角色那条必须硬拦
+另外两项迟早会炸，而**角色配反可能长期无症状**——只是安静地让一台本该只发资源的机器收下了凭证类请求。这是那种上线三个月才被发现的问题。
+:::
+
+### 日常续期（自动）
+
+面板每 10 分钟巡检一轮，给过了半个生命周期的**边缘节点**换证：
+
+```
+面板 ──cert_csr──►  边缘节点        节点生成 CSR，私钥不出本机
+面板 ──cert_sign─►  resource 子CA   子 CA 用自己的在线私钥签
+面板 ──cert_install► 边缘节点        节点校验后原子换证
+```
+
+面板**不持有任何签名私钥**，只做编排；离线根全程不参与。
+
+**子 CA 不会被自动续期**，它是手工签的（90 天一次）——自动续等于让在线的东西去延长一个本该由人把关的身份。到期前请按「接入一台新节点」的 ②③ 步重签。
+
+### 紧急踢出一台节点
+
+机器被入侵、私钥疑似泄漏时用。**这是唯一能立刻生效的手段**，不用等证书自然过期。
+
+**① 取出要吊销的证书序列号：**
+
+```bash
+admintool ca show -in=./edge1.cert | grep 序列号
+```
+
+也可以在面板对该节点执行 `cert_status`，返回里带 `serial` 与 `expires_at`。
+
+**② 广播吊销：**
+
+```bash
+curl -X POST https://面板地址/api/panel/certs/revoke \
+  -H 'Content-Type: application/json' \
+  -H "Cookie: $PANEL_SESSION" \
+  -d '{"serial":"<序列号>","subject":"edge-tokyo-1",
+       "expires_at":<原过期时刻的 Unix 毫秒>,"reason":"机器疑似被入侵"}'
+```
+
+**③ 核对未送达列表 —— 这一步不能跳过：**
+
+```json
+{
+  "delivered": 3,
+  "undelivered": { "edge-osaka-2": "节点离线,吊销未送达" },
+  "note": "未送达的节点在吊销送达前仍会接受该证书;它们上线后需重新广播"
+}
+```
+
+::: danger 部分送达就是部分生效
+接口**即便部分失败也返回 200**，因为返回 5xx 会让你以为整个操作没生效而重试，但实际上大部分节点已经生效了。
+
+未送达的节点（含离线的）在吊销送达前**仍然会接受这张证书**。它们上线后必须重新广播一次。请把 `undelivered` 当成待办清单，而不是可以忽略的附注。
+:::
+
+吊销条目会在原过期时刻自动清理——那之后证书自己已经失效，留着没有意义。

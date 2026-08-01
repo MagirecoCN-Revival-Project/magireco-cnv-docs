@@ -63,6 +63,13 @@
 | 变量 | 默认 | 说明 |
 |---|---|---|
 | `CNV_CLIENT_SESSION_TTL` | `7d` | `/client/init` 签发的 access_token 有效期 |
+| `CNV_CLIENT_TOKEN_ISSUER` | 取 `CNV_NODE_ID` | 本节点签发会话令牌时写进 `iss` 的标识。校验方按它挑公钥，同一部署内须稳定唯一 |
+| `CNV_CLIENT_TOKEN_SEED` | 自动生成并持久化 | 会话令牌签名私钥种子（32 字节十六进制）。留空则首次启动自动生成、存进 config 表。**这把钥匙必须在线**，与离线的目录私钥/根 CA 私钥是不同的钥匙，不可复用 |
+| `CNV_CLIENT_TOKEN_TRUSTED_KEYS` | — | 额外信任的签发方公钥，`标识:公钥hex,标识:公钥hex`。配了即进入**联邦模式**：本节点接受 API 服务端签发的身份，自己不再是身份的唯一来源 |
+| `CNV_PKI_ANCHORS` | — | 钉住的[根证书](/security/node-pki)文件，逗号分隔。**可配多把**——根轮换的重叠期要同时信任现用与下一把，只配一把的话轮换那天所有旧链一起失效 |
+| `CNV_PKI_CERT` | — | 本节点证书文件 |
+| `CNV_PKI_CHAIN` | — | 中间证书，自底向上、不含根，逗号分隔。由根直签的子 CA 留空；边缘节点须填上级那张 |
+| `CNV_PKI_KEY` | `./data/pki.key` | 本节点身份私钥种子，由 `node emit-csr` 生成。**绝不外传** |
 | `CNV_ADMIN_SESSION_TTL` | `7d` | 管理员 cookie 有效期 |
 | `CNV_ACCOUNT_SESSION_TTL` | `30d` | 玩家 token 有效期（支持滑动续期） |
 

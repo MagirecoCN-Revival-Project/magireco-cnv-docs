@@ -180,6 +180,7 @@ export default defineConfig({
             { text: '客户端安全与防篡改', link: '/security/client' },
             { text: '防改包闸门', link: '/security/anti-tamper' },
             { text: '版本闸门与软提示', link: '/security/version-gates' },
+            { text: '节点 PKI 与证书链', link: '/security/node-pki' },
             { text: '会话与令牌', link: '/security/sessions-tokens' },
             { text: '口令哈希 (scrypt)', link: '/security/password-hashing' },
             { text: 'PoW 人机验证', link: '/security/captcha-pow' },
