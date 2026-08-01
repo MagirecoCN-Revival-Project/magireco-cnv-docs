@@ -2,13 +2,22 @@
 
 主节点用一个关系数据库持有全部状态。本页是全表清单与关系总览。建表 SQL 内嵌在 `internal/store`,启动时按方言自动迁移。
 
+::: warning 账号相关的表已整体移交 API 服务端
+`accounts`、`account_sessions`、`saves`、`email_codes` 四张表**已从本服务端移除**。
+账号系统在架构上属于 API 后端,资源分发服务端只持有它下发的身份——留一份在这边意味着
+两套账号数据各自演化、迟早对不上。
+
+同时移除的还有已废弃的 `secondary_nodes`(旧心跳式副节点发现遗留,新架构改用面板注册表
++ [签名节点目录](/server/multi-node))。
+
+本页描述的是**现状**,共 13 张表。
+:::
+
 ## ER 总览
 
 ```mermaid
 erDiagram
     admins ||--o{ admin_sessions : "拥有"
-    accounts ||--o{ account_sessions : "拥有"
-    accounts ||--o| saves : "一份云存档"
     devices ||--o{ bans : "可被封禁"
     mirror_groups ||--o{ mirrors : "包含"
 
@@ -19,31 +28,12 @@ erDiagram
         text password_hash
         text role
     }
-    accounts {
-        text id PK
-        text username UK
-        text email UK
-        text password_hash
-        text status
-        int  login_count
-    }
-    account_sessions {
-        text token PK
-        text account_id FK
-        int  expires_at
-        int  last_seen_at
-    }
     client_sessions {
         text access_token PK
         text device_id
         text signature
         text channel
         int  expires_at
-    }
-    saves {
-        text account_id PK
-        json data
-        int  size_bytes
     }
     devices {
         text device_id PK
@@ -67,17 +57,15 @@ erDiagram
 | 表 | 主键 | 关键字段 | 说明 |
 |---|---|---|---|
 | `admins` | `id` | `username`/`email`(唯一)、`password_hash`、`role` | 后台管理员。role: super_admin/admin/readonly |
-| `accounts` | `id`(`acc-xxxx`) | `username`/`email`(唯一)、`password_hash`、`status`、`login_count` | 玩家账号。status: active/disabled |
 
 ### 会话(三套)
 
 | 表 | 主键 | 绑定 | TTL |
 |---|---|---|---|
 | `admin_sessions` | `token` | `admin_id`(级联删) | 7 天 |
-| `account_sessions` | `token` | `account_id`(级联删) | 30 天,滑动续期 |
 | `client_sessions` | `access_token` | `device_id` + `signature` + `channel` | 7 天 |
 
-`account_sessions` 还存 `device_name`/`os`/`ip`/`region`,供用户中心展示登录设备。`client_sessions` **不绑账号**(握手在登录之前)。
+`client_sessions` **不绑账号**——握手在登录之前,而登录已经不在本服务端了。它现在存的是自包含签名令牌的 `jti` 而非令牌本身,详见[会话与令牌](/security/sessions-tokens#客户端-access-token-自包含签名)。
 
 ### 设备与封禁
 
@@ -90,13 +78,11 @@ erDiagram
 
 | 表 | 主键 | 关键字段 | 说明 |
 |---|---|---|---|
-| `saves` | `account_id` | `data`(JSON)、`size_bytes`、`updated_at` | 云存档,一账号一行,级联随账号删除 |
 
 ### 验证
 
 | 表 | 主键 | 关键字段 | 说明 |
 |---|---|---|---|
-| `email_codes` | `id`(自增) | `email`、`code`、`purpose`、`expires_at`、`consumed` | 邮箱验证码。purpose: register/change_email/reset |
 | `cap_challenges` | `token` | `c`/`d`/`s`、`expires_at`、`solved` | PoW 挑战 |
 | `cap_tokens` | `token` | `expires_at`、`used` | 验证码兑换后的一次性令牌 |
 
@@ -115,7 +101,6 @@ erDiagram
 | 表 | 主键 | 说明 |
 |---|---|---|
 | `audit_log` | `id` | 审计日志,`ts`、`actor`、`type`、`target`、`details`(JSON)。按 ts/type/actor 建索引 |
-| `secondary_nodes` | `id` | **已废弃**(旧心跳式副节点发现遗留;新架构改用面板注册表 + 签名目录)。仍建表但已无代码读写,新装可忽略 |
 
 ## `config` KV 表
 
@@ -144,7 +129,7 @@ erDiagram
 
 ## JSON 列的方言差异
 
-`saves.data`、`config.value`、`audit_log.details`、`mirrors.files`、`secondary_nodes.files` 等是 JSON:
+`config.value`、`audit_log.details`、`mirrors.files` 等是 JSON:
 
 | 数据库 | 列类型 |
 |---|---|
@@ -156,8 +141,7 @@ Go 侧统一用 `json.RawMessage` 读写,不依赖数据库的 JSON 函数(只�
 
 ## 级联与清理
 
-- 删 `accounts` → 级联删其 `account_sessions` 和 `saves`(外键 `ON DELETE CASCADE`)。
-- 删 `admins` → 级联删其 `admin_sessions`。
-- 过期会话、过期封禁、过期验证码由**调度器**定期清理,不靠外键。
+- 删 `admins` → 级联删其 `admin_sessions`(外键 `ON DELETE CASCADE`)。
+- 过期会话与过期封禁由**调度器**定期清理,不靠外键。
 
 完整的存储层设计(方言抽象、UPSERT 生成、迁移机制)见 [存储层与多方言抽象](/contributing/server/store-dialects)。

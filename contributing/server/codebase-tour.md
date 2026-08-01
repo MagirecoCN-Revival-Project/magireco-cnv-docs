@@ -8,13 +8,12 @@
 cmd/
   node/         节点入口:business(DB + 全部 API + 调度器)/ edge(仅资源);均挂管控 WS + 根目录只读状态页(status.go)
   panel/        面板入口:节点注册表 + WS 管控连接器 + 管理 API + 托管游戏前端(webui.go)
-  admintool/    运维 CLI:create-admin / reset-* / 节点目录签名
+  admintool/    运维 CLI:create-admin / reset-admin / 节点目录签名 / ca 离线证书签发
 internal/
   api/
     client/     /client/* 6 个客户端握手接口  ← 协议保真重地
-    account/    /account/* 玩家 + /auth/* 面板登录
+    account/    /auth/login 管理员登录(玩家账号已移交 API 服务端)
     admin/      /admin/* 全部管理后台接口
-    user/       /user/api/* 用户中心
     captcha/    /api/* PoW 验证码
     setup/      /setup/* 首次安装向导
     respond/    统一 JSON 响应与 4xx 错误
@@ -28,7 +27,8 @@ internal/
   autoban/      自动封禁:多路滥用信号(篡改/心跳伪造/资源高频/验证码连败/多账号)→ 写 bans;阈值存 config 表,后台可调
   scheduler/    定时任务:封禁过期 / 会话 GC / 心跳超时 / 自动打包
   packer/       离线整包打包器
-  email/        SMTP 邮件发送
+  clienttoken/  自包含的 Ed25519 签名会话令牌(签发/校验,校验方不必与签发方共库)
+  pki/          节点身份证书链:签发、链校验、双向鉴权、自动续期、紧急吊销
   config/       CNV_* 环境变量加载与校验
 web/            前端:React + 浏览器内 Babel,无构建步骤;由**面板**统一托管(节点不再托管 WebUI)
 docs/           本文档站(VitePress)
@@ -67,9 +67,8 @@ flowchart LR
 | 包 | 路由前缀 | 职责 |
 |---|---|---|
 | `client` | `/client` | 握手协议(最核心,协议保真) |
-| `account` | `/account`、`/auth` | 玩家登录/注册/找回/云存档、面板登录 |
+| `account` | `/auth` | **仅管理员登录**。玩家登录/注册/找回/云存档已移交 API 服务端 |
 | `admin` | `/admin` | 管理后台全部接口 |
-| `user` | `/user/api` | 玩家自助(设备/存档/改密) |
 | `captcha` | `/api` | PoW 挑战/兑换 |
 | `setup` | `/setup` | 首次安装向导(完成后自锁) |
 | `respond` | — | `OK`/`Fail`/`JSON` 统一响应 |
@@ -134,7 +133,7 @@ web/
 |---|---|
 | 某路由挂了什么中间件 | `cmd/node/main.go` |
 | 某 `/client/*` 字段怎么来的 | `internal/api/client/handlers.go` + `state.go` |
-| 某个 SQL | `internal/store/account.go` 或 `etc.go` |
+| 某个 SQL | `internal/store/account.go`(现只剩管理员)或 `etc.go` |
 | 某个配置项怎么读 | 搜 `ConfigGet(ctx, "<key>"` |
 | 某个限流配额 | `cmd/node/main.go` 里的 `NewLimiter(...)` |
 | 协议字段的"真理" | `protocol_test.go` + 客户端 Java 源码 |

@@ -46,7 +46,7 @@ flowchart TB
     Client -->|"资源下载（就近）"| Res
 
     Admin -->|"① 加载前端页面"| Panel
-    Admin -->|"② 跨域直连 API（CORS）\n/auth /admin /user/api /account"| API
+    Admin -->|"② 跨域直连 API（CORS）\n/auth /admin"| API
 ```
 
 ## 节点密钥（自持配对）
@@ -182,7 +182,7 @@ CNV_ADDR=:8090 \
 
 1. **业务节点配置面板地址**：设 `CNV_PANEL_PUBLIC_URL` 为面板对外 URL（如 `https://panel.example.com`）。它有两个作用：
    - 客户端入口页（`/account/register`、`/account/forgot`、`/account/verify-email`）**302 跳转**到面板同名页；
-   - 作为 **CORS 放行来源**——业务节点只对该来源回显 `Access-Control-Allow-Origin`，放行浏览器对 `/auth`、`/admin`、`/user/api`、`/account`、`/api`（验证码）的跨域请求与预检。
+   - 作为 **CORS 放行来源**——业务节点只对该来源回显 `Access-Control-Allow-Origin`，放行浏览器对 `/auth`、`/admin`、`/api`（验证码）的跨域请求与预检。
 2. **面板注入 API 基址**：面板托管前端时会动态下发 `/app-config.js`，把**注册表里首个业务节点**的 `api_url` 注入为 `window.MR_API_BASE`；前端 `api.jsx` 以它为所有请求前缀。未注册业务节点时基址为空 = 同源回落。
 3. **鉴权走 Bearer**：跨域链路不依赖 Cookie，登录后 token 存 `localStorage`、以 `Authorization: Bearer` 随请求发送，因此节点 CORS **不**开 `Allow-Credentials`，只精确回显面板来源、不使用通配 `*`。
 4. **CSP**：面板给托管页面下发的 `Content-Security-Policy` 会把业务节点来源加进 `connect-src`，浏览器才允许跨域 XHR。
@@ -211,7 +211,7 @@ CNV_ADDR=:8090 \
 | 面板 `/panel`、`/panel/status` | 面板 | 节点注册表只读总览 |
 | 面板 `/api/panel/*` | 面板 | 节点注册表管理 API |
 | 节点 `/` `/status.json` | 各节点 | 该节点只读实时状态 |
-| 节点 `/client` `/auth` `/admin` `/user/api` `/account` `/api` | 业务节点 | 游戏与管理 API（浏览器跨域直连） |
+| 节点 `/client` `/auth` `/admin` `/api` | 业务节点 | 资源分发与管理 API（浏览器跨域直连）。玩家账号端点已移交 API 服务端 |
 
 ### 多机部署
 

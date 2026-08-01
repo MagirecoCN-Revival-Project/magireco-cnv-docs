@@ -1,4 +1,12 @@
-# 三套会话体系
+# 会话体系
+
+::: warning 从三套减到两套
+`account_sessions`(玩家会话)已随账号系统整体移交 API 服务端,本服务端不再有玩家账号。
+本页保留三套对比是为了说明**为什么当初要分开**——那条推理对现在剩下的两套仍然成立,
+而且正是它让拆分做起来没有痛苦:三套本来就没有共用同一张表。
+
+现存两套:`client_sessions`(客户端握手)与 `admin_sessions`(管理后台)。
+:::
 
 服务端同时服务三类调用方,各有**完全独立**的会话存储与鉴权流程。理解三者区别是读懂鉴权代码的前提。
 
@@ -33,7 +41,7 @@ flowchart TB
 ## 为什么分三套
 
 - **client_session 不绑账号**:握手发生在玩家登录**之前**(开 APK 就握手,可能还没登录)。它只认设备 + 签名,管的是"这个客户端能不能跟服务器对话"。
-- **account_session 跨端共用**:同一个玩家 token 在游戏内(`/account/save/*`)和网页用户中心(`/user/api/*`)都用,所以 TTL 长(30 天)且滑动续期,实现"记住登录"。
+- **account_session 跨端共用**:同一个玩家 token 在游戏内(`/account/save/*`)和网页用户中心(`/user/api/*`)都用,所以 TTL 长(30 天)且滑动续期,实现"记住登录"。*(这套已移交 API 服务端,下述行为在那边继续成立。)*
 - **admin_session 独立且短**:后台权限大,TTL 短(7 天),不滑动续期,降低被盗风险。
 
 ## Token 形态
@@ -51,7 +59,7 @@ func NewToken() (string, error) {
 
 ## 玩家会话:滑动续期
 
-这是 account_session 的特色。每次玩家命中 `/user/api/*` 或 `/account/save/*`,中间件调用 `AccountSessionTouch`:
+这是 account_session 的特色(**该机制已随账号系统移交 API 服务端**,以下描述的是它在那边的行为)。每次玩家命中 `/user/api/*` 或 `/account/save/*`,中间件调用 `AccountSessionTouch`:
 
 ```mermaid
 flowchart TB
@@ -76,7 +84,6 @@ flowchart TB
 | 中间件 | 保护 | 行为 |
 |---|---|---|
 | `requireClientSession` | `/client/*`(除 init) | 校验 authTriple + signature 一致性 + 封禁 |
-| `RequireAccount` | `/user/api/*` | 校验玩家会话 + 滑动续期 + 账号未停用 |
 | `RequireAdmin` | (基础) | 校验管理员会话有效 |
 | `RequireWritableAdmin` | `/admin/*` | 在 `RequireAdmin` 上加:拒绝 `readonly` 角色 |
 | `RequireSuperAdmin` | `/admins/*` | 仅 `super_admin` |

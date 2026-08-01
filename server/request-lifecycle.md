@@ -37,14 +37,12 @@ flowchart TB
     ROOT --> ACC["/account/* /auth/*<br/>登录/注册/验证码 各自限流"]
     ROOT --> API["/api/*<br/>验证码限流"]
     ROOT --> ADM["/admin/*<br/>RequireWritableAdmin"]
-    ROOT --> USR["/user/api/*<br/>RequireAccount(滑动续期)"]
     ROOT --> INT["/internal/*<br/>SharedKey 鉴权"]
     ROOT --> STATIC["静态:/res /dl 前端页"]
 ```
 
 - `/client/init` 是**公开**的(握手起点),但内部做签名/渠道/版本校验。其余 `/client/*` 端点用 `requireClientSession` 校验 authTriple(`device_id` + `access_token` + `signature`)。
 - `/admin/*` 默认要求**可写管理员**;`/admins/*` 子路由额外要求超管。
-- `/user/api/*` 要求玩家会话,并在中间件里做**滑动续期**。
 - `/internal/*` 用副节点共享密钥鉴权(等时比较)。
 
 ## 一个握手请求的完整旅程

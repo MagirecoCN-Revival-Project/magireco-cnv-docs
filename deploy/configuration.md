@@ -71,7 +71,6 @@
 | `CNV_PKI_CHAIN` | — | 中间证书，自底向上、不含根，逗号分隔。由根直签的子 CA 留空；边缘节点须填上级那张 |
 | `CNV_PKI_KEY` | `./data/pki.key` | 本节点身份私钥种子，由 `node emit-csr` 生成。**绝不外传** |
 | `CNV_ADMIN_SESSION_TTL` | `7d` | 管理员 cookie 有效期 |
-| `CNV_ACCOUNT_SESSION_TTL` | `30d` | 玩家 token 有效期（支持滑动续期） |
 
 时长可写秒数（纯数字）或 Go duration（如 `720h`、`30m`）。
 
@@ -91,13 +90,10 @@
 
 ### SMTP 邮件
 
-| 变量 | 默认 | 说明 |
-|---|---|---|
-| `CNV_SMTP_HOST` | — | SMTP 服务器地址；为空则禁用邮件发送 |
-| `CNV_SMTP_PORT` | `587` | SMTP 端口 |
-| `CNV_SMTP_USER` / `CNV_SMTP_PASS` | — | SMTP 认证 |
-| `CNV_SMTP_FROM` | — | 发件人地址 |
-| `CNV_SMTP_FROM_NAME` | `魔法纪录复兴计划` | 发件人显示名 |
+::: warning 已移交 API 服务端
+`CNV_SMTP_*` 与 `CNV_ACCOUNT_SESSION_TTL` 已从本服务端**移除**——账号系统整体归 API 后端，
+资源分发服务端不再发任何邮件、也不再持有玩家会话。这些变量请配在 API 服务端上。
+:::
 
 ## 面板（`magireco-panel`）
 
