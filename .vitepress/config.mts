@@ -115,6 +115,7 @@ export default defineConfig({
             { text: '总览', link: '/protocol/' },
             { text: '客户端 ↔ 服务端握手协议', link: '/protocol/client-server' },
             { text: '网页客户端 ↔ API 服务端', link: '/protocol/api-server' },
+            { text: '契约登记表', link: '/protocol/contract-register' },
             { text: '引擎数据契约', link: '/protocol/engine-data-contracts' },
             { text: '上游游戏后端 API 清单', link: '/protocol/upstream-api' },
           ],

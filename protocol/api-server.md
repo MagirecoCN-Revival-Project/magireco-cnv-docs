@@ -238,13 +238,31 @@ Ed25519 而不是 HMAC、撤销怎么保住)见[会话与令牌](/security/sessi
 
 ### `/client/scene-manifest`
 
+**形状已于 2026-08 定稿**（待决项 R2，见[契约登记表](/protocol/contract-register#r2-定稿-清单形状)）。
+随定稿撤除生产守卫——本端点不再要求 `CNV_DEV_MODE`。
+
 ```json
 // 请求
-{ "device_id": "...", "access_token": "...", "signature": "", "scene_id": "story_11011" }
+{ "device_id": "...", "access_token": "...", "signature": "",
+  "scene_id": "story/11011", "known_manifest_hash": "9f8e7d6c…" }
 
 // 响应
-{ "success": true, "scene_id": "story_11011", "assets": [{ "path": "resource/..." }] }
+{ "success": true, "scene_id": "story/11011", "manifest_hash": "9f8e7d6c…",
+  "assets": [
+    { "path": "resource/chara/1001/base.moc3", "sha256": "3c0a9b8d…", "size": 412849 }
+  ] }
+
+// 客户端手里那份仍然有效时(known_manifest_hash 命中)
+{ "success": true, "scene_id": "story/11011", "manifest_hash": "9f8e7d6c…", "unchanged": true }
 ```
+
+| 字段 | 含义 |
+|---|---|
+| `path` | 边缘节点上的 key。客户端拼到按 `caps:["resource"]` 选出的节点 base 上 |
+| `sha256` | 缓存失效判据 **兼** 完整性校验 |
+| `size` | 字节数，调度用;也是下载前一道廉价 sanity check |
+| `manifest_hash` | 整张清单的哈希,用于跳过重复传输 |
+| `unchanged` | 仅在 `known_manifest_hash` 命中时出现;此时 `assets` **省略** |
 
 **场景包是清单与调度单位,文件是传输与缓存单位。** 客户端拿到清单后与本地缓存做
 差集,**只拉缺失的文件**;边缘节点下发的始终是单个文件,因此保持为纯对象存储 +
@@ -254,11 +272,36 @@ Ed25519 而不是 HMAC、撤销怎么保住)见[会话与令牌](/security/sessi
 包若自包含,同一份角色资产会被复制进几百个包——服务端存储翻数倍、玩家重复下载、
 且缓存淘汰会为了 3 个需要的文件保留 47 个不需要的。
 
+::: danger `sha256` 不只是防传输错误
+边缘节点持小时级证书、可能是第三方镜像,是信任树的**最外层**。客户端从它取来的字节
+必须能对着一个由业务节点这条路径下发的哈希核对——这里抗碰撞有真实的安全意义,
+所以是 sha256 而不是更便宜的 CRC32/MD5。
+
+边缘节点那侧刻意不发 `ETag`(算全树 MD5 的代价与收益不成比例),缓存失效判据因此
+必须由清单这一侧给出。
+:::
+
+::: tip 清单里不放 URL
+只给 `path`。把完整 URL 钉进一份可能被缓存很久的清单,等于把线路选择固化掉,
+多节点、故障转移、就近接入全部作废——线路该由[签名节点目录](/protocol/client-server#签名节点目录)
+在取用那一刻决定。
+:::
+
+**`scene_id` 命名空间**:`<namespace>/<id>`,`namespace` 匹配 `^[a-z][a-z0-9_]*$`
+(保留 `story` `battle` `chara` `ui` `movie` `audio`),`id` 匹配
+`^[A-Za-z0-9_.-]{1,64}$`。服务端必须校验格式——当前实现只用它查表、不拼路径,
+但契约要在它还不危险的时候就把闸设上。
+
+**增量**:服务端**不跟踪客户端有什么**。差集完全在客户端做(它本来就有本地缓存
+索引),服务端只回答"这张清单还是不是你手里那张"。`unchanged:true` 时 `assets`
+省略而**不是**空数组——空数组的语义是"该场景不需要任何资产",两者不能共用一种表示。
+
 失败分支:
 
 | 状态码 | 错误码 | 含义 |
 |---|---|---|
 | `400` | `missing_scene_id` | 请求没带 `scene_id` |
+| `400` | `malformed_scene_id` | `scene_id` 不符合命名空间格式 |
 | `404` | `scene_not_found` | 未知的 `scene_id` |
 | `503` | `manifest_unavailable` | 场景清单尚未接入构建管线 |
 
@@ -267,13 +310,4 @@ Ed25519 而不是 HMAC、撤销怎么保住)见[会话与令牌](/security/sessi
 资产",于是静默进入一个残缺的场景——错误被推迟到最难排查的地方才暴露。
 :::
 
-::: warning 清单形状仍是待决项，且受生产守卫管辖
-当前是协议文档 `06-dev-mode` 规定的**开发期最小形状**,只含 `path`。正式形状
-(内容哈希 / `size` / 增量 / 场景 ID 命名空间)是待决项 **R2**。
-
-因为它是临时值,本端点**只在 `CNV_DEV_MODE=true` 时可用**;生产环境一律返回 503,
-哪怕清单已经接进来了。见 [生产守卫](/deploy/configuration#cnv-dev-mode-生产守卫-🔒)。
-
-定稿后按扩展性规则**新增字段**即可:客户端忽略未知字段,既有实现不受影响。
-:::
 
