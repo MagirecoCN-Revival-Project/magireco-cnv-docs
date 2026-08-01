@@ -74,7 +74,7 @@ flowchart LR
   "banned": false,
   "protocol_version": 1,
   "protocol_versions": [1],
-  "access_token": "32 字节 hex",
+  "access_token": "cnv1.<载荷>.<签名>",
   "server_time_at": 1785090393,
   "server":     { "status": "ok", "message": "", "end_time": 0 },
   "features":   { "account_enabled": true },
@@ -178,6 +178,18 @@ bool 字段不受此约束(`false` 是合法业务值)。
 
 服务端校验:token 合法 → 绑定该 device_id → **signature 与握手时一致** → 未封禁。
 signature 中途变化会作废会话(疑似换包)。
+
+::: tip access_token 是自包含签名令牌,不是随机串
+形如 `cnv1.<base64url(紧凑JSON)>.<base64url(Ed25519签名)>`,载荷里带 `device_id`、
+客户端签名、版本、渠道、账号 UUID、签发/过期时刻与 `jti`。**校验只需公钥**。
+
+这不是可有可无的讲究:**API 服务端是身份的源头**,而资源分发服务端要在不连它、
+也不共享数据库的前提下认得这个身份。随机 hex + 查库做不到这件事——校验方必须
+和签发方共用一个库,账号系统就永远拆不出去。
+
+对客户端而言线上契约只是"照原样带回来",格式细节不必解析。完整设计(为什么用
+Ed25519 而不是 HMAC、撤销怎么保住)见[会话与令牌](/security/sessions-tokens#客户端-access-token-自包含签名)。
+:::
 
 ## 其余端点
 
