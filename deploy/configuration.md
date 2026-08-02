@@ -189,6 +189,7 @@ export CNV_ADDR=:8090
 |---|---|---|
 | `CNV_DEV_MODE` 🔒 | `false` | `true` 时允许下发协议的**开发期临时值**（📝 草案形状）。**生产必须为 false**，见下。当前无端点受管辖 |
 | `CNV_SCENE_MANIFEST_FILE` | — | 场景资产清单文件路径。空 = 场景清单未启用，`/client/scene-manifest` 返回 503。**加载失败拒绝启动**，格式见[契约登记表 R5a](/protocol/contract-register#r5a-场景资产清单-✅) |
+| `CNV_MASTER_DATA_FILE` | — | 战斗数值 master data 文件路径。空 = 未启用。**加载失败拒绝启动**，格式见[契约登记表 R5b](/protocol/contract-register#r5b-战斗数值-master-data-✅) |
 | `CNV_BOOTSTRAP_ENDPOINT` | — | Android 底包引导端点 `/magica/api/snaa` 下发的业务服务器地址。留空 = 不接管底包，该端点返回 503 |
 | `CNV_BOOTSTRAP_MAX_THREADS` | `4` | 下发给底包的并发下载线程数建议值 |
 | `CNV_BOOTSTRAP_VERSION` | `0` | 当前底包版本号（`r128` → `128`） |
